@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Base.API.Controllers
@@ -30,26 +31,14 @@ namespace Base.API.Controllers
             _unitOfWork = unitOfWork;
             _userProfileService = userProfileService; 
         }
-        /// <summary>
-        /// Get All Users
-        /// </summary>
-        /// <remarks>
-        /// هذا الـ endpoint يعرض جميع المستخدمين الموجودين في قاعدة البيانات.
-        /// يمكن فلترة النتائج حسب الحاجة.
-        /// </remarks>
-        /// <returns>قائمة المستخدمين</returns>
-        /// <response code="200">All Users</response>
-        /// <response code="401">you are not authorized</response>
-        /// <response code="403">Forbidden to access this end point</response>
-        /// <response code="404">No users found in the system.</response>
-        /// <response code="500">Internal Server Error</response>
+     
         [HttpGet("users")]
         [Authorize(Roles = "SystemAdmin")]
         public async Task<IActionResult> GetAllUsers()
         {
             // 1. جلب جميع المستخدمين إلى الذاكرة.
             // يفضل استخدام ToListAsync() إذا كان متاحاً لجعلها عملية IO حقيقية.
-            var users = _userManager.Users.ToList();
+            var users = _userManager.Users.AsNoTracking().ToList();
 
             if (users == null || !users.Any())
             {
@@ -76,7 +65,7 @@ namespace Base.API.Controllers
                 user.Email,
                 // 💡 استخدام القاموس للوصول الفوري للأدوار.
                 Roles = userRolesMap.ContainsKey(user.Id) ? userRolesMap[user.Id] : new List<string>()
-            });
+                    });
 
             return Ok(result);
           //  return Ok(new ApiResponseDTO(200, "All Users",result) );
@@ -96,7 +85,7 @@ namespace Base.API.Controllers
                 //    (مع أن [Authorize] يغطي هذا، لكن التأكد يضيف طبقة وضوح).
                 if (User.Identity == null || !User.Identity.IsAuthenticated)
                 {
-                    throw new UnauthorizedException("The user is not authenticated.");
+                    throw new UnauthorizedException( "The user is not authenticated.");
                 }
 
                 // 2. استخدام GetUserAsync لجلب المستخدم من الـ Claims في الـ HttpContext.

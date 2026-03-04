@@ -36,7 +36,8 @@ internal class Program
         builder.Services.AddEndpointsApiExplorer();
 
         builder.Services.AddSwaggerGen();
-
+        builder.Services.AddScoped<DonationRequestService>();
+        
 
         var app = builder.Build();
 
