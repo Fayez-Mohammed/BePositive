@@ -2,29 +2,27 @@
 using Base.API.Filters;
 using Base.DAL.Contexts;
 using Base.DAL.Models.BaseModels;
-using Base.DAL.Models.SystemModels;
 using Base.Repo.Implementations;
 using Base.Repo.Interfaces;
 using Base.Services.Implementations;
-using Base.Services.Implementations.HospitalImplementations;
 using Base.Services.Interfaces;
-using Base.Services.Interfaces.HospitalInterfaces;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Text;
 using System;
 using System.Linq;
-using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Identity.UI.Services;
+using Base.DAL.Models.SystemModels;
 
 namespace Base.API.Services
 {
@@ -42,7 +40,7 @@ namespace Base.API.Services
             services.AddHangfire(configuration);
             services.AddResponseAndCaching(configuration);
             services.AddAuthorizationPolicies();
-            services.AddScoped<IBloodRequestService, BloodRequestService>();
+
             return services;
         }
 
@@ -237,12 +235,7 @@ namespace Base.API.Services
             services.AddScoped<IUserProfileService, UserProfileService>();
             services.AddScoped<IAuthorizationHandler, ActiveUserHandler>();
             services.AddScoped<IUploadImageService, UploadImageService>();
-            services.AddScoped<IHospitalAuthService, HospitalAuthService>();
-            services.AddScoped<IHospitalManagementService, HospitalManagementService>();
-            services.AddScoped<IDonorMonitoringService, DonorMonitoringService>();
-            services.AddScoped<IBloodInventoryService, BloodInventoryService>();
-            services.AddScoped<IDashboardService, DashboardService>();
-            services.AddScoped<IAnalyticsService, AnalyticsService>();
+
             // -----------------------
             // إذا كان لديك أي service صغيرة stateless → استخدم Transient
             // -----------------------
@@ -276,39 +269,26 @@ namespace Base.API.Services
             // CORS - استخدم قائمة origins من الـ config (آمن وقابل للتغيير لكل بيئة)
             var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? new string[0];
 
-            //services.AddCors(options =>
-            //{
-            //    options.AddPolicy("DefaultCorsPolicy", builder =>
-            //    {
-            //        if (allowedOrigins.Any())
-            //        {
-            //            builder.WithOrigins(allowedOrigins)
-            //                .AllowAnyHeader()
-            //                .AllowAnyMethod();
-            //        }
-            //        else
-            //        {
-            //            // في حالة التطوير المؤقت فقط - لا تترك هذا في الإنتاج
-            //            builder.SetIsOriginAllowed(_ => true)
-            //                   .AllowAnyHeader()
-            //                   .AllowAnyMethod();
-            //        }
-            //    });
-            //});
-            // Program.cs
-
-             services.AddCors(options =>
+            services.AddCors(options =>
             {
-                options.AddPolicy("AllowAll", policy =>
+                options.AddPolicy("DefaultCorsPolicy", builder =>
                 {
-                    policy
-                        .AllowAnyOrigin()
-                        .AllowAnyMethod()
-                        .AllowAnyHeader();
+                    if (allowedOrigins.Any())
+                    {
+                        builder.WithOrigins(allowedOrigins)
+                            .AllowAnyHeader()
+                            .AllowAnyMethod();
+                    }
+                    else
+                    {
+                        // في حالة التطوير المؤقت فقط - لا تترك هذا في الإنتاج
+                        builder.SetIsOriginAllowed(_ => true)
+                               .AllowAnyHeader()
+                               .AllowAnyMethod();
+                    }
                 });
             });
 
-            // ─── must be BEFORE app.UseAuthorization() ───
             return services;
         }
 
