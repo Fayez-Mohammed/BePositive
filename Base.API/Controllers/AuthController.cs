@@ -1,9 +1,11 @@
 ﻿using Azure.Core;
 using Base.API.DTOs;
+using Base.DAL.Contexts;
 using Base.DAL.Models.BaseModels;
 using Base.Services.Implementations;
 using Base.Services.Interfaces;
 using Base.Shared.DTOs;
+using Base.Shared.Enums;
 using Base.Shared.Responses;
 using Base.Shared.Responses.Exceptions;
 using Microsoft.AspNetCore.Authentication;
@@ -17,6 +19,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -35,13 +38,16 @@ namespace Base.API.Controllers
         private readonly IUserProfileService _userProfile;
         private readonly ILogger<AuthController> _logger;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly AppDbContext _context;
 
 
-        public AuthController(IAuthService authService, ILogger<AuthController> logger,UserManager<ApplicationUser> userManager)
+        public AuthController(IAuthService authService, ILogger<AuthController> logger,UserManager<ApplicationUser> userManager, AppDbContext context)
         {
             _authService = authService;
             _logger = logger;
             _userManager = userManager;
+            _context = context;
+
         }
         [HttpPost("ForceResetPassword")]
         public async Task<IActionResult> ForceResetPassword([FromQuery] string email, [FromQuery] string newPassword)
@@ -153,6 +159,238 @@ namespace Base.API.Controllers
 
             return Ok(result); // 200 OK for full success
         }
+        /// <summary>
+        /// Authenticates a user and generates authentication tokens if successful.
+        /// </summary>
+        /// <remarks>
+        /// This endpoint handles user login attempts. It validates the provided credentials and returns appropriate responses based on the authentication outcome.
+        /// 
+        /// Possible scenarios:
+        /// - If the email is not confirmed, an OTP is sent for verification, and the response indicates that confirmation is required.
+        /// - If two-factor authentication (2FA) is enabled, an OTP is sent for login, and the response prompts for OTP verification.
+        /// - If credentials are invalid or the account is locked, an error message is returned.
+        /// - On successful login without additional verification, JWT and refresh tokens are provided along with user details.
+        /// 
+        /// The response body is always a <see cref="LoginResult"/> object containing success status, messages, error codes, and conditional sections (Auth, Verification, User).
+        /// 
+        /// Example Response (Full Success - 200):
+        /// {
+        ///   "Success": true,
+        ///   "Message": "Login successful.",
+        ///   "ErrorCode": null,
+        ///   "Auth": {
+        ///     "Token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        ///     "RefreshToken": "abc123-refresh",
+        ///     "TokenExpiry": "2025-11-19T14:00:00Z"
+        ///   },
+        ///   "Verification": {
+        ///     "RequiresOtpVerification": false,
+        ///     "EmailConfirmed": true
+        ///   },
+        ///   "User": {
+        ///     "Id": "user123",
+        ///     "UserName": "john_doe",
+        ///     "Email": "john@example.com",
+        ///     "UserType": "SystemAdmin",
+        ///     "Roles": ["SystemAdmin", "User"]
+        ///   }
+        /// }
+        /// 
+        /// Example Response (OTP Required - 202):
+        /// {
+        ///   "Success": true,
+        ///   "Message": "OTP sent for login.",
+        ///   "ErrorCode": null,
+        ///   "Auth": null,
+        ///   "Verification": {
+        ///     "RequiresOtpVerification": true,
+        ///     "EmailConfirmed": true,
+        ///     "Email": "john@example.com"
+        ///   },
+        ///   "User": null
+        /// }
+        /// 
+        /// Example Response (Invalid Credentials - 401):
+        /// {
+        ///   "Success": false,
+        ///   "Message": "Invalid credentials.",
+        ///   "ErrorCode": "INVALID_CREDENTIALS",
+        ///   "Auth": null,
+        ///   "Verification": null,
+        ///   "User": null
+        /// }
+        /// </remarks>
+        /// <param name="model">The login credentials including email and password.</param>
+        /// <response code="200">Full login success with tokens and user details. Returns <see cref="LoginResult"/>.</response>
+        /// <response code="202">Login requires further verification (e.g., OTP or email confirmation). Returns <see cref="LoginResult"/> with verification details.</response>
+        /// <response code="400">Invalid model state (e.g., missing or malformed input).</response>
+        /// <response code="401">Invalid credentials. Returns <see cref="LoginResult"/> with error details.</response>
+        /// <response code="403">Account locked. Returns <see cref="LoginResult"/> with error details.</response>
+        [ProducesResponseType(typeof(LoginResult), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(LoginResult), StatusCodes.Status202Accepted)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(LoginResult), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(LoginResult), StatusCodes.Status403Forbidden)]
+        [HttpPost("Adminlogin")]
+        public async Task<IActionResult> AdminLogin([FromBody] LoginDTO model)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            var user= await _userManager.FindByEmailAsync(model.Email);
+            if (user == null || !await _userManager.IsInRoleAsync(user, UserTypes.SystemAdmin.ToString()))
+            {
+                return Unauthorized(new LoginResult
+                {
+                    Success = false,
+                    Message = "Invalid credentials.",
+                    ErrorCode = "INVALID_CREDENTIALS"
+                });
+            }
+
+            var result = await _authService.LoginUserAsync(model);
+
+            if (!result.Success)
+            {
+                return result.ErrorCode == "ACCOUNT_LOCKED" ? StatusCode(403, result) : Unauthorized(result);
+            }
+
+            if (result.Verification?.RequiresOtpVerification == true || result.Verification?.EmailConfirmed == false)
+            {
+                return Accepted(result); // 202 Accepted for partial success
+            }
+
+            return Ok(result); // 200 OK for full success
+        }
+        /// <summary>
+        /// Authenticates a hospital administrator using the provided login credentials.
+        /// </summary>
+        /// <remarks>This method validates the model state and checks if the user exists and has the
+        /// appropriate role. It handles various outcomes, including account lock status and verification
+        /// requirements.</remarks>
+        /// <param name="model">The login credentials containing the email and password of the hospital administrator.</param>
+        /// <returns>An IActionResult indicating the result of the login attempt, which can be a success, unauthorized access, or
+        /// a request for additional verification.</returns>
+        [ProducesResponseType(typeof(LoginResult), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(LoginResult), StatusCodes.Status202Accepted)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(LoginResult), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(LoginResult), StatusCodes.Status403Forbidden)]
+        [HttpPost("HospitalAdminlogin")]
+        public async Task<IActionResult> HospitalAdminLogin([FromBody] LoginDTO model)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            // 1. Find user and verify they are a HospitalAdmin
+            var user = await _userManager.FindByEmailAsync(model.Email);
+            if (user == null || !await _userManager.IsInRoleAsync(user, UserTypes.HospitalAdmin.ToString()))
+            {
+                return Unauthorized(new LoginResult
+                {
+                    Success = false,
+                    Message = "Invalid credentials.",
+                    ErrorCode = "INVALID_CREDENTIALS"
+                });
+            }
+
+            // 2. Find the HospitalAdmin record linked to this user
+            var hospitalAdmin = await _context.HospitalAdmins
+                .FirstOrDefaultAsync(ha => ha.UserId == user.Id && !ha.IsDeleted);
+
+            if (hospitalAdmin == null)
+            {
+                return Unauthorized(new LoginResult
+                {
+                    Success = false,
+                    Message = "No hospital admin record found for this account.",
+                    ErrorCode = "ADMIN_NOT_FOUND"
+                });
+            }
+
+            // 3. Find the Hospital and check its status
+            var hospital = await _context.Hospitals
+                .FirstOrDefaultAsync(h => h.Id == hospitalAdmin.HospitalId && !h.IsDeleted);
+
+            if (hospital == null)
+            {
+                return Unauthorized(new LoginResult
+                {
+                    Success = false,
+                    Message = "Associated hospital not found.",
+                    ErrorCode = "HOSPITAL_NOT_FOUND"
+                });
+            }
+
+            // 4. Block login based on hospital status
+            if (hospital.Status == HospitalStatus.UnderReview)
+            {
+                return StatusCode(403, new LoginResult
+                {
+                    Success = false,
+                    Message = "Your hospital registration is still under review. " +
+                                "Please wait for activation by our team.",
+                    ErrorCode = "HOSPITAL_UNDER_REVIEW"
+                });
+            }
+
+            if (hospital.Status == HospitalStatus.Suspended)
+            {
+                return StatusCode(403, new LoginResult
+                {
+                    Success = false,
+                    Message = "Your hospital account has been suspended. " +
+                                "Please contact support for assistance.",
+                    ErrorCode = "HOSPITAL_SUSPENDED"
+                });
+            }
+
+            // 5. Hospital is Active — proceed with normal login
+            var result = await _authService.LoginUserAsync(model);
+            if (!result.Success)
+            {
+                return result.ErrorCode == "ACCOUNT_LOCKED"
+                    ? StatusCode(403, result)
+                    : Unauthorized(result);
+            }
+
+            if (result.Verification?.RequiresOtpVerification == true ||
+                result.Verification?.EmailConfirmed == false)
+            {
+                return Accepted(result); // 202 — OTP verification required
+            }
+
+            return Ok(result); // 200 — full success
+        }
+
+        //[HttpPost("HospitalAdminlogin")]
+        //public async Task<IActionResult> HospitalAdminLogin([FromBody] LoginDTO model)
+        //{
+        //    if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        //    var user= await _userManager.FindByEmailAsync(model.Email);
+        //    if (user == null || !await _userManager.IsInRoleAsync(user, UserTypes.HospitalAdmin.ToString()))
+        //    {
+        //        return Unauthorized(new LoginResult
+        //        {
+        //            Success = false,
+        //            Message = "Invalid credentials.",
+        //            ErrorCode = "INVALID_CREDENTIALS"
+        //        });
+        //    }
+
+        //    var result = await _authService.LoginUserAsync(model);
+
+        //    if (!result.Success)
+        //    {
+        //        return result.ErrorCode == "ACCOUNT_LOCKED" ? StatusCode(403, result) : Unauthorized(result);
+        //    }
+
+        //    if (result.Verification?.RequiresOtpVerification == true || result.Verification?.EmailConfirmed == false)
+        //    {
+        //        return Accepted(result); // 202 Accepted for partial success
+        //    }
+
+        //    return Ok(result); // 200 OK for full success
+        //}
 
         /// <summary>
         /// Verifies the OTP for login and generates authentication tokens if successful.

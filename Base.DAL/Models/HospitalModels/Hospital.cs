@@ -1,5 +1,6 @@
 using Base.DAL.Models.BaseModels;
 using Base.DAL.Models.RequestModels;
+using Base.Shared.Enums;
 
 namespace Base.DAL.Models.HospitalModels
 {
@@ -14,7 +15,7 @@ namespace Base.DAL.Models.HospitalModels
         public string? Address { get; set; }
         public decimal? Latitude { get; set; }
         public decimal? Longitude { get; set; }
-        public string Status { get; set; } = "UnderReview"; // "Active","UnderReview","Suspended"
+        public HospitalStatus Status { get; set; } = HospitalStatus.UnderReview; // "Active","UnderReview","Suspended"
         public bool IsDeleted { get; set; } = false;
         public DateTime? DeletedAt { get; set; }
         public string? DeletedById { get; set; }

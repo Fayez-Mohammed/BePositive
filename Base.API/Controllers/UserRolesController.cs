@@ -19,6 +19,7 @@ namespace Base.API.Controllers
     [Authorize(Roles = "SystemAdmin")]
     public class UserRolesController : ControllerBase
     {
+
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
 

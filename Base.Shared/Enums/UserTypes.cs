@@ -9,8 +9,11 @@ namespace Base.Shared.Enums
  
     public enum UserTypes
     {
-        Donor = 1,
-        HospitalAdmin = 2,
-        SystemAdmin = 3
+
+        User = 1,
+        Donor = 2,
+        HospitalAdmin = 3,
+        SystemAdmin = 4,
+        
     }
 }

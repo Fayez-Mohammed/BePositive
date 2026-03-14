@@ -1,5 +1,4 @@
-﻿
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Base.API.MiddleWare
 {
@@ -83,48 +82,102 @@ namespace Base.API.MiddleWare
                                 }
                             }
 
-                            // flatten data/result if exists
+                            // ── Flatten "data" or "result" keys ──────────────────────
+                            // Handles three cases:
+                            //   1. data is an OBJECT  → flatten its properties to root
+                            //   2. data is an ARRAY   → keep it as-is under its original key
+                            //   3. no data key        → add all remaining dict keys to root
                             string[] flattenKeys = { "data", "result" };
-                            Dictionary<string, object?>? flat = null;
+                            bool flattened = false;
 
                             foreach (var key in flattenKeys)
                             {
-                                var match = dict.Keys.FirstOrDefault(x => x.Equals(key, StringComparison.OrdinalIgnoreCase));
-                                if (match != null)
+                                var match = dict.Keys.FirstOrDefault(
+                                    x => x.Equals(key, StringComparison.OrdinalIgnoreCase));
+
+                                if (match == null) continue;
+
+                                var raw = dict[match];
+
+                                if (raw is JsonElement je)
                                 {
-                                    var raw = dict[match];
-
-                                    if (raw is JsonElement je && je.ValueKind == JsonValueKind.Object)
+                                    if (je.ValueKind == JsonValueKind.Object)
                                     {
-                                        flat = JsonSerializer.Deserialize<Dictionary<string, object?>>(je.GetRawText());
-                                    }
-                                    else if (raw is Dictionary<string, object?> d2)
-                                    {
-                                        flat = d2;
-                                    }
+                                        // ✅ Case 1: array is an object — flatten it
+                                        var flat = JsonSerializer.Deserialize<Dictionary<string, object?>>(
+                                            je.GetRawText());
 
+                                        if (flat != null)
+                                        {
+                                            dict.Remove(match);
+
+                                            // Add remaining dict keys into flat
+                                            foreach (var kv in dict)
+                                                flat[kv.Key] = kv.Value;
+
+                                            // Add flat into finalDict
+                                            foreach (var kv in flat)
+                                                finalDict[kv.Key] = kv.Value;
+
+                                            flattened = true;
+                                            break;
+                                        }
+                                    }
+                                    else if (je.ValueKind == JsonValueKind.Array)
+                                    {
+                                        // ✅ Case 2: data is an ARRAY — keep it under its key
+                                        // Do NOT flatten — just add it as-is
+                                        finalDict[match] = JsonSerializer.Deserialize<object>(je.GetRawText());
+                                        dict.Remove(match);
+
+                                        // Add remaining dict keys to finalDict
+                                        foreach (var kv in dict)
+                                            finalDict[kv.Key] = kv.Value;
+
+                                        flattened = true;
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        // ✅ Null, bool, number, string — keep as-is
+                                        finalDict[match] = JsonSerializer.Deserialize<object>(je.GetRawText());
+                                        dict.Remove(match);
+
+                                        foreach (var kv in dict)
+                                            finalDict[kv.Key] = kv.Value;
+
+                                        flattened = true;
+                                        break;
+                                    }
+                                }
+                                else if (raw is Dictionary<string, object?> d2)
+                                {
                                     dict.Remove(match);
+                                    foreach (var kv in dict)
+                                        d2[kv.Key] = kv.Value;
+                                    foreach (var kv in d2)
+                                        finalDict[kv.Key] = kv.Value;
+
+                                    flattened = true;
                                     break;
                                 }
                             }
 
-                            if (flat != null)
+                            if (!flattened)
                             {
-                                foreach (var kv in dict)
-                                    flat[kv.Key] = kv.Value;
-
-                                foreach (var kv in flat)
-                                    finalDict[kv.Key] = kv.Value;
-                            }
-                            else
-                            {
+                                // No data/result key — add everything to finalDict directly
                                 foreach (var kv in dict)
                                     finalDict[kv.Key] = kv.Value;
                             }
                         }
+                        else if (root.ValueKind == JsonValueKind.Array)
+                        {
+                            // Root is an array — wrap it as "value"
+                            finalDict["value"] = JsonSerializer.Deserialize<object>(bodyText);
+                        }
                         else
                         {
-                            // primitive/array → return as value
+                            // Primitive
                             finalDict["value"] = JsonSerializer.Deserialize<object>(bodyText);
                         }
                     }
@@ -155,292 +208,455 @@ namespace Base.API.MiddleWare
 
 
 
-/*using Base.API.DTOs;
-using System.Text.Json;
 
-namespace Base.API.MiddleWare
-{
-    public class SuccessResponseMiddleware
-    {
-        private readonly RequestDelegate _next;
-        private readonly ILogger<SuccessResponseMiddleware> _logger;
 
-        public SuccessResponseMiddleware(RequestDelegate next, ILogger<SuccessResponseMiddleware> logger)
-        {
-            _next = next;
-            _logger = logger;
-        }
 
-        public async Task InvokeAsync(HttpContext context)
-        {
-            if (context.Request.Path.StartsWithSegments("/hangfire"))
-            {
-                await _next(context);
-                return;
-            }
 
-            var originalBodyStream = context.Response.Body;
-            await using var responseBody = new MemoryStream();
-            context.Response.Body = responseBody;
 
-            try
-            {
-                await _next(context);
-            }
-            catch
-            {
-                context.Response.Body = originalBodyStream;
-                throw;
-            }
 
-            responseBody.Seek(0, SeekOrigin.Begin);
-            var bodyText = await new StreamReader(responseBody).ReadToEndAsync();
 
-            if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300)
-            {
-                string traceId = context.TraceIdentifier ?? Guid.NewGuid().ToString();
-                int statusCode = context.Response.StatusCode;
-                string message = "Success";
-                object? data = null;
+//using System.Text.Json;
 
-                if (!string.IsNullOrWhiteSpace(bodyText))
-                {
-                    try
-                    {
-                        using var doc = JsonDocument.Parse(bodyText);
-                        var root = doc.RootElement;
-                        if (root.ValueKind == JsonValueKind.Object)
-                        {
-                            var dict = new Dictionary<string, object?>();
+//namespace Base.API.MiddleWare
+//{
+//    public class SuccessResponseMiddleware
+//    {
+//        private readonly RequestDelegate _next;
+//        private readonly ILogger<SuccessResponseMiddleware> _logger;
 
-                            foreach (var prop in root.EnumerateObject())
-                            {
-                                var propName = prop.Name.ToLower();
+//        public SuccessResponseMiddleware(RequestDelegate next, ILogger<SuccessResponseMiddleware> logger)
+//        {
+//            _next = next;
+//            _logger = logger;
+//        }
 
-                                if (propName == "statuscode")
-                                    statusCode = prop.Value.GetInt32();
+//        public async Task InvokeAsync(HttpContext context)
+//        {
+//            if (context.Request.Path.StartsWithSegments("/hangfire"))
+//            {
+//                await _next(context);
+//                return;
+//            }
 
-                                else if (propName == "message")
-                                    message = prop.Value.GetString() ?? message;
+//            var originalBody = context.Response.Body;
+//            await using var tempBody = new MemoryStream();
+//            context.Response.Body = tempBody;
 
-                                else
-                                    dict[prop.Name] = JsonSerializer.Deserialize<object>(prop.Value.GetRawText());
-                            }
+//            try
+//            {
+//                await _next(context);
+//            }
+//            catch
+//            {
+//                context.Response.Body = originalBody;
+//                throw;
+//            }
 
-                            // keys to flatten
-                            var flattenKeys = new[] { "data", "result" };
+//            tempBody.Seek(0, SeekOrigin.Begin);
+//            var bodyText = await new StreamReader(tempBody).ReadToEndAsync();
 
-                            object? flatData = null;
+//            if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300)
+//            {
+//                string traceId = context.TraceIdentifier ?? Guid.NewGuid().ToString();
+//                int statusCode = context.Response.StatusCode;
+//                string message = "Success";
 
-                            foreach (var key in flattenKeys)
-                            {
-                                var match = dict.Keys.FirstOrDefault(k =>
-                                    k.Equals(key, StringComparison.OrdinalIgnoreCase));
+//                var finalDict = new Dictionary<string, object?>
+//                {
+//                    ["statusCode"] = statusCode,
+//                    ["message"] = message,
+//                    ["traceId"] = traceId
+//                };
 
-                                if (match != null)
-                                {
-                                    var elem = dict[match];
+//                if (!string.IsNullOrWhiteSpace(bodyText))
+//                {
+//                    try
+//                    {
+//                        using var doc = JsonDocument.Parse(bodyText);
+//                        var root = doc.RootElement;
 
-                                    // 1) لو elem JsonElement → نفكه
-                                    if (elem is JsonElement je)
-                                    {
-                                        if (je.ValueKind == JsonValueKind.Object)
-                                        {
-                                            flatData = JsonSerializer.Deserialize<Dictionary<string, object?>>(
-                                                je.GetRawText()
-                                            );
-                                        }
-                                    }
-                                    // 2) لو elem Dictionary بالفعل
-                                    else if (elem is Dictionary<string, object?> innerDict)
-                                    {
-                                        flatData = innerDict;
-                                    }
+//                        if (root.ValueKind == JsonValueKind.Object)
+//                        {
+//                            var dict = new Dictionary<string, object?>();
 
-                                    if (flatData != null)
-                                    {
-                                        break;
-                                    }
-                                }
-                            }
+//                            foreach (var prop in root.EnumerateObject())
+//                            {
+//                                var name = prop.Name.ToLower();
 
-                            data = flatData ?? dict;
-                        }
+//                                if (name == "statuscode")
+//                                {
+//                                    statusCode = prop.Value.GetInt32();
+//                                    finalDict["statusCode"] = statusCode;
+//                                }
+//                                else if (name == "message")
+//                                {
+//                                    message = prop.Value.GetString() ?? message;
+//                                    finalDict["message"] = message;
+//                                }
+//                                else
+//                                {
+//                                    dict[prop.Name] = JsonSerializer.Deserialize<object>(prop.Value.GetRawText());
+//                                }
+//                            }
 
-                        // لو response هو JSON object
-                        //if (root.ValueKind == JsonValueKind.Object)
-                        //{
-                        //    var dict = new Dictionary<string, object?>();
+//                            // flatten data/result if exists
+//                            string[] flattenKeys = { "data", "result" };
+//                            Dictionary<string, object?>? flat = null;
 
-                        //    foreach (var prop in root.EnumerateObject())
-                        //    {
-                        //        // شيل statusCode و message من البيانات
-                        //        if (prop.NameEquals("statusCode"))
-                        //            statusCode = prop.Value.GetInt32();
-                        //        else if (prop.NameEquals("message"))
-                        //            message = prop.Value.GetString() ?? message;
-                        //        else
-                        //            dict[prop.Name] = JsonSerializer.Deserialize<object>(prop.Value.GetRawText());
-                        //    }
+//                            foreach (var key in flattenKeys)
+//                            {
+//                                var match = dict.Keys.FirstOrDefault(x => x.Equals(key, StringComparison.OrdinalIgnoreCase));
+//                                if (match != null)
+//                                {
+//                                    var raw = dict[match];
 
-                        //    data = dict;
-                        //}
-                        else
-                        {
-                            // لو مش object (مثلا array) نحطه كله في data
-                            data = JsonSerializer.Deserialize<object>(bodyText);
-                        }
-                    }
-                    catch
-                    {
-                        message = bodyText.Trim('"', '\'');
-                    }
-                }
+//                                    if (raw is JsonElement je && je.ValueKind == JsonValueKind.Object)
+//                                    {
+//                                        flat = JsonSerializer.Deserialize<Dictionary<string, object?>>(je.GetRawText());
+//                                    }
+//                                    else if (raw is Dictionary<string, object?> d2)
+//                                    {
+//                                        flat = d2;
+//                                    }
 
-                var apiResponse = new
-                {
-                    statusCode,
-                    message,
-                    traceId,
-                    data
-                };
+//                                    dict.Remove(match);
+//                                    break;
+//                                }
+//                            }
 
-                var jsonResponse = JsonSerializer.Serialize(apiResponse, new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    WriteIndented = true
-                });
+//                            if (flat != null)
+//                            {
+//                                foreach (var kv in dict)
+//                                    flat[kv.Key] = kv.Value;
 
-                await WriteResponseAsync(context, originalBodyStream, jsonResponse);
-            }
-            else
-            {
-                responseBody.Seek(0, SeekOrigin.Begin);
-                await responseBody.CopyToAsync(originalBodyStream);
-            }
-        }
+//                                foreach (var kv in flat)
+//                                    finalDict[kv.Key] = kv.Value;
+//                            }
+//                            else
+//                            {
+//                                foreach (var kv in dict)
+//                                    finalDict[kv.Key] = kv.Value;
+//                            }
+//                        }
+//                        else
+//                        {
+//                            // primitive/array → return as value
+//                            finalDict["value"] = JsonSerializer.Deserialize<object>(bodyText);
+//                        }
+//                    }
+//                    catch
+//                    {
+//                        finalDict["value"] = bodyText.Trim('"');
+//                    }
+//                }
 
-        private static async Task WriteResponseAsync(HttpContext context, Stream originalBodyStream, string jsonResponse)
-        {
-            context.Response.Body = originalBodyStream;
-            context.Response.ContentType = "application/json; charset=utf-8";
-            context.Response.ContentLength = System.Text.Encoding.UTF8.GetByteCount(jsonResponse);
-            await context.Response.WriteAsync(jsonResponse);
-        }
-    }
-}
+//                var output = JsonSerializer.Serialize(finalDict, new JsonSerializerOptions
+//                {
+//                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+//                    WriteIndented = true
+//                });
 
-*/
+//                context.Response.Body = originalBody;
+//                context.Response.ContentType = "application/json; charset=utf-8";
+//                await context.Response.WriteAsync(output);
+//            }
+//            else
+//            {
+//                tempBody.Seek(0, SeekOrigin.Begin);
+//                await tempBody.CopyToAsync(originalBody);
+//            }
+//        }
+//    }
+//}
 
-/*using Base.API.DTOs;
-using System.Text.Json;
 
-namespace Base.API.MiddleWare
-{
-    public class SuccessResponseMiddleware
-    {
-        private readonly RequestDelegate _next;
-        private readonly ILogger<SuccessResponseMiddleware> _logger;
 
-        public SuccessResponseMiddleware(RequestDelegate next, ILogger<SuccessResponseMiddleware> logger)
-        {
-            _next = next;
-            _logger = logger;
-        }
+///*using Base.API.DTOs;
+//using System.Text.Json;
 
-        public async Task InvokeAsync(HttpContext context)
-        {
-            // تخطي أي شيء يبدأ بـ /hangfire
-            if (context.Request.Path.StartsWithSegments("/hangfire"))
-            {
-                await _next(context);
-                return;
-            }
-            var originalBodyStream = context.Response.Body;
-            using var responseBody = new MemoryStream();
-            context.Response.Body = responseBody;
+//namespace Base.API.MiddleWare
+//{
+//    public class SuccessResponseMiddleware
+//    {
+//        private readonly RequestDelegate _next;
+//        private readonly ILogger<SuccessResponseMiddleware> _logger;
 
-            try
-            {
-                await _next(context);
-            }
-            catch
-            {
-                context.Response.Body = originalBodyStream;
-                throw;
-            }
+//        public SuccessResponseMiddleware(RequestDelegate next, ILogger<SuccessResponseMiddleware> logger)
+//        {
+//            _next = next;
+//            _logger = logger;
+//        }
 
-            responseBody.Seek(0, SeekOrigin.Begin);
-            var bodyText = await new StreamReader(responseBody).ReadToEndAsync();
+//        public async Task InvokeAsync(HttpContext context)
+//        {
+//            if (context.Request.Path.StartsWithSegments("/hangfire"))
+//            {
+//                await _next(context);
+//                return;
+//            }
 
-            // ✅ فقط لو 2xx
-            if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300)
-            {
-                string traceId = context.TraceIdentifier ?? Guid.NewGuid().ToString();
-                object? data = null;
-                string? message = null;
+//            var originalBodyStream = context.Response.Body;
+//            await using var responseBody = new MemoryStream();
+//            context.Response.Body = responseBody;
 
-                if (!string.IsNullOrWhiteSpace(bodyText))
-                {
-                    try
-                    {
-                        using var doc = JsonDocument.Parse(bodyText);
-                        if (doc.RootElement.TryGetProperty("statusCode", out _))
-                        {
-                            var json = JsonSerializer.Deserialize<Dictionary<string, object>>(bodyText);
-                            if (json != null)
-                            {
-                                if (!json.ContainsKey("traceId"))
-                                    json["traceId"] = traceId;
+//            try
+//            {
+//                await _next(context);
+//            }
+//            catch
+//            {
+//                context.Response.Body = originalBodyStream;
+//                throw;
+//            }
 
-                                var modifiedJson = JsonSerializer.Serialize(json,
-                                    new JsonSerializerOptions
-                                    {
-                                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                                        WriteIndented = true
-                                    });
+//            responseBody.Seek(0, SeekOrigin.Begin);
+//            var bodyText = await new StreamReader(responseBody).ReadToEndAsync();
 
-                                context.Response.Body = originalBodyStream;
-                                context.Response.ContentType = "application/json";
-                                await context.Response.WriteAsync(modifiedJson);
-                                return;
-                            }
-                        }
-                        data = JsonSerializer.Deserialize<object>(bodyText);
-                    }
-                    catch
-                    {
-                        message = bodyText.Trim('"', '\'');
-                    }
-                }
+//            if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300)
+//            {
+//                string traceId = context.TraceIdentifier ?? Guid.NewGuid().ToString();
+//                int statusCode = context.Response.StatusCode;
+//                string message = "Success";
+//                object? data = null;
 
-                message ??= "Success";
+//                if (!string.IsNullOrWhiteSpace(bodyText))
+//                {
+//                    try
+//                    {
+//                        using var doc = JsonDocument.Parse(bodyText);
+//                        var root = doc.RootElement;
+//                        if (root.ValueKind == JsonValueKind.Object)
+//                        {
+//                            var dict = new Dictionary<string, object?>();
 
-                var apiResponse = new ApiResponseDTO(
-                    statusCode: context.Response.StatusCode,
-                    message: message,
-                    data: data
-                )
-                {
-                    TraceId = traceId
-                };
+//                            foreach (var prop in root.EnumerateObject())
+//                            {
+//                                var propName = prop.Name.ToLower();
 
-                var jsonResponse = JsonSerializer.Serialize(apiResponse, new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    WriteIndented = true
-                });
+//                                if (propName == "statuscode")
+//                                    statusCode = prop.Value.GetInt32();
 
-                context.Response.Body = originalBodyStream;
-                context.Response.ContentType = "application/json";
-                await context.Response.WriteAsync(jsonResponse);
-            }
-            else
-            {
-                responseBody.Seek(0, SeekOrigin.Begin);
-                await responseBody.CopyToAsync(originalBodyStream);
-            }
-        }
-    }
+//                                else if (propName == "message")
+//                                    message = prop.Value.GetString() ?? message;
 
-}*/
+//                                else
+//                                    dict[prop.Name] = JsonSerializer.Deserialize<object>(prop.Value.GetRawText());
+//                            }
+
+//                            // keys to flatten
+//                            var flattenKeys = new[] { "data", "result" };
+
+//                            object? flatData = null;
+
+//                            foreach (var key in flattenKeys)
+//                            {
+//                                var match = dict.Keys.FirstOrDefault(k =>
+//                                    k.Equals(key, StringComparison.OrdinalIgnoreCase));
+
+//                                if (match != null)
+//                                {
+//                                    var elem = dict[match];
+
+//                                    // 1) لو elem JsonElement → نفكه
+//                                    if (elem is JsonElement je)
+//                                    {
+//                                        if (je.ValueKind == JsonValueKind.Object)
+//                                        {
+//                                            flatData = JsonSerializer.Deserialize<Dictionary<string, object?>>(
+//                                                je.GetRawText()
+//                                            );
+//                                        }
+//                                    }
+//                                    // 2) لو elem Dictionary بالفعل
+//                                    else if (elem is Dictionary<string, object?> innerDict)
+//                                    {
+//                                        flatData = innerDict;
+//                                    }
+
+//                                    if (flatData != null)
+//                                    {
+//                                        break;
+//                                    }
+//                                }
+//                            }
+
+//                            data = flatData ?? dict;
+//                        }
+
+//                        // لو response هو JSON object
+//                        //if (root.ValueKind == JsonValueKind.Object)
+//                        //{
+//                        //    var dict = new Dictionary<string, object?>();
+
+//                        //    foreach (var prop in root.EnumerateObject())
+//                        //    {
+//                        //        // شيل statusCode و message من البيانات
+//                        //        if (prop.NameEquals("statusCode"))
+//                        //            statusCode = prop.Value.GetInt32();
+//                        //        else if (prop.NameEquals("message"))
+//                        //            message = prop.Value.GetString() ?? message;
+//                        //        else
+//                        //            dict[prop.Name] = JsonSerializer.Deserialize<object>(prop.Value.GetRawText());
+//                        //    }
+
+//                        //    data = dict;
+//                        //}
+//                        else
+//                        {
+//                            // لو مش object (مثلا array) نحطه كله في data
+//                            data = JsonSerializer.Deserialize<object>(bodyText);
+//                        }
+//                    }
+//                    catch
+//                    {
+//                        message = bodyText.Trim('"', '\'');
+//                    }
+//                }
+
+//                var apiResponse = new
+//                {
+//                    statusCode,
+//                    message,
+//                    traceId,
+//                    data
+//                };
+
+//                var jsonResponse = JsonSerializer.Serialize(apiResponse, new JsonSerializerOptions
+//                {
+//                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+//                    WriteIndented = true
+//                });
+
+//                await WriteResponseAsync(context, originalBodyStream, jsonResponse);
+//            }
+//            else
+//            {
+//                responseBody.Seek(0, SeekOrigin.Begin);
+//                await responseBody.CopyToAsync(originalBodyStream);
+//            }
+//        }
+
+//        private static async Task WriteResponseAsync(HttpContext context, Stream originalBodyStream, string jsonResponse)
+//        {
+//            context.Response.Body = originalBodyStream;
+//            context.Response.ContentType = "application/json; charset=utf-8";
+//            context.Response.ContentLength = System.Text.Encoding.UTF8.GetByteCount(jsonResponse);
+//            await context.Response.WriteAsync(jsonResponse);
+//        }
+//    }
+//}
+
+//*/
+
+///*using Base.API.DTOs;
+//using System.Text.Json;
+
+//namespace Base.API.MiddleWare
+//{
+//    public class SuccessResponseMiddleware
+//    {
+//        private readonly RequestDelegate _next;
+//        private readonly ILogger<SuccessResponseMiddleware> _logger;
+
+//        public SuccessResponseMiddleware(RequestDelegate next, ILogger<SuccessResponseMiddleware> logger)
+//        {
+//            _next = next;
+//            _logger = logger;
+//        }
+
+//        public async Task InvokeAsync(HttpContext context)
+//        {
+//            // تخطي أي شيء يبدأ بـ /hangfire
+//            if (context.Request.Path.StartsWithSegments("/hangfire"))
+//            {
+//                await _next(context);
+//                return;
+//            }
+//            var originalBodyStream = context.Response.Body;
+//            using var responseBody = new MemoryStream();
+//            context.Response.Body = responseBody;
+
+//            try
+//            {
+//                await _next(context);
+//            }
+//            catch
+//            {
+//                context.Response.Body = originalBodyStream;
+//                throw;
+//            }
+
+//            responseBody.Seek(0, SeekOrigin.Begin);
+//            var bodyText = await new StreamReader(responseBody).ReadToEndAsync();
+
+//            // ✅ فقط لو 2xx
+//            if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300)
+//            {
+//                string traceId = context.TraceIdentifier ?? Guid.NewGuid().ToString();
+//                object? data = null;
+//                string? message = null;
+
+//                if (!string.IsNullOrWhiteSpace(bodyText))
+//                {
+//                    try
+//                    {
+//                        using var doc = JsonDocument.Parse(bodyText);
+//                        if (doc.RootElement.TryGetProperty("statusCode", out _))
+//                        {
+//                            var json = JsonSerializer.Deserialize<Dictionary<string, object>>(bodyText);
+//                            if (json != null)
+//                            {
+//                                if (!json.ContainsKey("traceId"))
+//                                    json["traceId"] = traceId;
+
+//                                var modifiedJson = JsonSerializer.Serialize(json,
+//                                    new JsonSerializerOptions
+//                                    {
+//                                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+//                                        WriteIndented = true
+//                                    });
+
+//                                context.Response.Body = originalBodyStream;
+//                                context.Response.ContentType = "application/json";
+//                                await context.Response.WriteAsync(modifiedJson);
+//                                return;
+//                            }
+//                        }
+//                        data = JsonSerializer.Deserialize<object>(bodyText);
+//                    }
+//                    catch
+//                    {
+//                        message = bodyText.Trim('"', '\'');
+//                    }
+//                }
+
+//                message ??= "Success";
+
+//                var apiResponse = new ApiResponseDTO(
+//                    statusCode: context.Response.StatusCode,
+//                    message: message,
+//                    data: data
+//                )
+//                {
+//                    TraceId = traceId
+//                };
+
+//                var jsonResponse = JsonSerializer.Serialize(apiResponse, new JsonSerializerOptions
+//                {
+//                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+//                    WriteIndented = true
+//                });
+
+//                context.Response.Body = originalBodyStream;
+//                context.Response.ContentType = "application/json";
+//                await context.Response.WriteAsync(jsonResponse);
+//            }
+//            else
+//            {
+//                responseBody.Seek(0, SeekOrigin.Begin);
+//                await responseBody.CopyToAsync(originalBodyStream);
+//            }
+//        }
+//    }
+
+//}*/

@@ -235,7 +235,8 @@ namespace Base.API.Services
             services.AddScoped<IUserProfileService, UserProfileService>();
             services.AddScoped<IAuthorizationHandler, ActiveUserHandler>();
             services.AddScoped<IUploadImageService, UploadImageService>();
-
+            services.AddScoped<IHospitalAuthService, HospitalAuthService>();
+            services.AddScoped<IHospitalManagementService, HospitalManagementService>();
             // -----------------------
             // إذا كان لديك أي service صغيرة stateless → استخدم Transient
             // -----------------------
@@ -269,26 +270,39 @@ namespace Base.API.Services
             // CORS - استخدم قائمة origins من الـ config (آمن وقابل للتغيير لكل بيئة)
             var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? new string[0];
 
-            services.AddCors(options =>
+            //services.AddCors(options =>
+            //{
+            //    options.AddPolicy("DefaultCorsPolicy", builder =>
+            //    {
+            //        if (allowedOrigins.Any())
+            //        {
+            //            builder.WithOrigins(allowedOrigins)
+            //                .AllowAnyHeader()
+            //                .AllowAnyMethod();
+            //        }
+            //        else
+            //        {
+            //            // في حالة التطوير المؤقت فقط - لا تترك هذا في الإنتاج
+            //            builder.SetIsOriginAllowed(_ => true)
+            //                   .AllowAnyHeader()
+            //                   .AllowAnyMethod();
+            //        }
+            //    });
+            //});
+            // Program.cs
+
+             services.AddCors(options =>
             {
-                options.AddPolicy("DefaultCorsPolicy", builder =>
+                options.AddPolicy("AllowAll", policy =>
                 {
-                    if (allowedOrigins.Any())
-                    {
-                        builder.WithOrigins(allowedOrigins)
-                            .AllowAnyHeader()
-                            .AllowAnyMethod();
-                    }
-                    else
-                    {
-                        // في حالة التطوير المؤقت فقط - لا تترك هذا في الإنتاج
-                        builder.SetIsOriginAllowed(_ => true)
-                               .AllowAnyHeader()
-                               .AllowAnyMethod();
-                    }
+                    policy
+                        .AllowAnyOrigin()
+                        .AllowAnyMethod()
+                        .AllowAnyHeader();
                 });
             });
 
+            // ─── must be BEFORE app.UseAuthorization() ───
             return services;
         }
 

@@ -1,4 +1,5 @@
 using Base.DAL.Models.HospitalModels;
+using Base.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -14,7 +15,9 @@ namespace Base.DAL.Config.HospitalConfig
             builder.HasIndex(h => h.LicenseNumber).IsUnique().HasFilter("[LicenseNumber] IS NOT NULL");
             builder.Property(h => h.Email).HasMaxLength(150);
             builder.Property(h => h.Phone).HasMaxLength(20);
-            builder.Property(h => h.Status).HasMaxLength(20).HasDefaultValue("UnderReview");
+            //   builder.Property(h => h.Status).HasMaxLength(20).HasDefaultValue("UnderReview");
+            builder.Property(h => h.Status).HasDefaultValue(HospitalStatus.UnderReview);
+
             builder.Property(h => h.Latitude).HasColumnType("decimal(9,6)");
             builder.Property(h => h.Longitude).HasColumnType("decimal(9,6)");
 

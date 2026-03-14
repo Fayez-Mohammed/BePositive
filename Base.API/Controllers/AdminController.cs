@@ -76,7 +76,7 @@ namespace Base.API.Controllers
                 user.Email,
                 // 💡 استخدام القاموس للوصول الفوري للأدوار.
                 Roles = userRolesMap.ContainsKey(user.Id) ? userRolesMap[user.Id] : new List<string>()
-            });
+            }).ToList();
 
             return Ok(result);
           //  return Ok(new ApiResponseDTO(200, "All Users",result) );

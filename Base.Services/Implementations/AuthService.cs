@@ -278,7 +278,7 @@ namespace Base.Services.Implementations
                 PhoneNumber = model.PhoneNumber,
                 TwoFactorEnabled = false,
                 IsActive = true,
-                Type = UserTypes.Donor,
+                Type = UserTypes.User,
                 EmailConfirmed = false
             };
 
