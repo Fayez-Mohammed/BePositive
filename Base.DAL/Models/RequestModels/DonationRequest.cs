@@ -1,6 +1,7 @@
 using Base.DAL.Models.BaseModels;
 using Base.DAL.Models.BloodModels;
 using Base.DAL.Models.HospitalModels;
+using Base.Shared.Enums;
 
 namespace Base.DAL.Models.RequestModels
 {
@@ -10,11 +11,11 @@ namespace Base.DAL.Models.RequestModels
         public string BloodTypeId { get; set; }
         public int QuantityRequired { get; set; } = 1;
         public int QuantityFulfilled { get; set; } = 0;
-        public string UrgencyLevel { get; set; }    // "Normal", "Urgent", "Critical"
+        public UrgencyLevel UrgencyLevel { get; set; }    // "Normal", "Urgent", "Critical"
         public string? Note { get; set; }
         public decimal? Latitude { get; set; }
         public decimal? Longitude { get; set; }
-        public string Status { get; set; } = "Open"; // "Open","Fulfilled","Cancelled","Expired"
+        public RequestStatus Status { get; set; } = RequestStatus.Open;
         public DateTime? Deadline { get; set; }
         public bool IsDeleted { get; set; } = false;
         public DateTime? DeletedAt { get; set; }

@@ -2,6 +2,7 @@
 using Base.DAL.Models.BaseModels;
 using Base.Services.Implementations;
 using Base.Shared.DTOs;
+using Base.Shared.Enums;
 using Base.Shared.Responses.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -82,6 +83,17 @@ namespace Base.API.Controllers
                 var errors = result.Errors.Select(e => e.Description).ToList();
                 throw new BadRequestException(errors);
             }
+            string type = model.Role.Trim();
+            if (type == UserTypes.SystemAdmin.ToString())
+                user.Type = UserTypes.SystemAdmin;
+            else if (type == UserTypes.HospitalAdmin.ToString())
+                user.Type = UserTypes.HospitalAdmin;
+            else if (type == UserTypes.Donor.ToString())
+                user.Type = UserTypes.Donor;
+            else if (type == UserTypes.User.ToString())
+                user.Type = UserTypes.User;
+
+            await _userManager.UpdateAsync(user);
             return Ok(new ApiResponseDTO(200, $"User '{model.Email}' added to role '{model.Role}' successfully."));
 
         }

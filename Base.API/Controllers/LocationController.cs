@@ -105,5 +105,26 @@ namespace Base.API.Controllers
 
             return Ok(cities);
         }
+
+        /// <summary>
+        /// Get all blood types.
+        /// Used to populate blood type selection buttons on the frontend.
+        /// Example: GET /api/locations/blood-types
+        /// </summary>
+        [HttpGet("blood-types")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetBloodTypes()
+        {
+            var bloodTypes = await _context.BloodTypes
+                .OrderBy(b => b.TypeName)
+                .Select(b => new
+                {
+                    b.Id,
+                    b.TypeName
+                })
+                .ToListAsync();
+
+            return Ok(bloodTypes);
+        }
     }
 }

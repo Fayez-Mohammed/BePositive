@@ -2,27 +2,29 @@
 using Base.API.Filters;
 using Base.DAL.Contexts;
 using Base.DAL.Models.BaseModels;
+using Base.DAL.Models.SystemModels;
 using Base.Repo.Implementations;
 using Base.Repo.Interfaces;
 using Base.Services.Implementations;
+using Base.Services.Implementations.HospitalImplementations;
 using Base.Services.Interfaces;
+using Base.Services.Interfaces.HospitalInterfaces;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using System.Text;
-using System;
-using System.Linq;
-using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.AspNetCore.Identity.UI.Services;
-using Base.DAL.Models.SystemModels;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System;
+using System.Linq;
+using System.Text;
+using System.Text.Json;
 
 namespace Base.API.Services
 {
@@ -40,7 +42,7 @@ namespace Base.API.Services
             services.AddHangfire(configuration);
             services.AddResponseAndCaching(configuration);
             services.AddAuthorizationPolicies();
-
+            services.AddScoped<IBloodRequestService, BloodRequestService>();
             return services;
         }
 

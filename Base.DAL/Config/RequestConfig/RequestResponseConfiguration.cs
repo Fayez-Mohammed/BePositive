@@ -1,4 +1,5 @@
 using Base.DAL.Models.RequestModels;
+using Base.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -9,7 +10,7 @@ namespace Base.DAL.Config.RequestConfig
         public void Configure(EntityTypeBuilder<RequestResponse> builder)
         {
             builder.HasKey(r => r.Id);
-            builder.Property(r => r.Status).HasMaxLength(20).HasDefaultValue("Pending");
+            builder.Property(r => r.Status).HasDefaultValue(ResponseStatus.Pending);
             builder.Property(r => r.DonorDistanceKm).HasColumnType("decimal(5,2)");
             builder.Property(r => r.RespondedAt).HasDefaultValueSql("GETUTCDATE()");
 
