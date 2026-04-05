@@ -239,6 +239,7 @@ namespace Base.API.Services
             services.AddScoped<IUploadImageService, UploadImageService>();
             services.AddScoped<IHospitalAuthService, HospitalAuthService>();
             services.AddScoped<IHospitalManagementService, HospitalManagementService>();
+            services.AddScoped<IDonorMonitoringService, DonorMonitoringService>();
             // -----------------------
             // إذا كان لديك أي service صغيرة stateless → استخدم Transient
             // -----------------------
