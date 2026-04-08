@@ -2,6 +2,7 @@ using Base.DAL.Models.BaseModels;
 using Base.DAL.Models.BloodModels;
 using Base.DAL.Models.DonorModels;
 using Base.DAL.Models.HospitalModels;
+using Base.DAL.Models.InventoryModels;
 using Base.DAL.Models.RequestModels;
 using Base.DAL.Models.SystemModels;
 using Base.Shared.Responses;
@@ -100,6 +101,14 @@ namespace Base.DAL.Contexts
         public DbSet<DonorNotificationLog> DonorNotificationLogs { get; set; }
         public DbSet<DonationHistory> DonationHistories { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        #endregion
+        /////
+        ///
+        #region DBSets — InventoryTables
+        // ── Blood Inventory ───────────────────────────────────────────
+        public DbSet<BloodInventory> BloodInventories { get; set; }
+        public DbSet<BloodInventoryBatch> BloodInventoryBatches { get; set; }
+        public DbSet<BloodInventoryTransaction> BloodInventoryTransactions { get; set; }
         #endregion
     }
 }

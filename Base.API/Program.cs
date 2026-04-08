@@ -39,7 +39,7 @@ internal class Program
 
 
         var app = builder.Build();
-
+       
         #region Seeding
         // 💡 تنفيذ التهيئة الأولية للبيانات عند بدء التشغيل
         using (var scope = app.Services.CreateScope())
@@ -142,6 +142,12 @@ internal class Program
                 TimeZone = cairoTimeZone
             }
         );
+        RecurringJob.AddOrUpdate<BloodInventoryExpiryJob>(
+    "CheckExpiredBloodBatches",
+    job => job.ExecuteAsync(),
+    Cron.Daily,
+    new RecurringJobOptions { TimeZone = cairoTimeZone }
+);
         // 💡 تعيين نقطة النهاية الافتراضية للتعامل مع الطلبات غير المعروفة
         app.MapFallback(async context =>
         {
