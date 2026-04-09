@@ -11,7 +11,6 @@ public static class DonationRequestMapper
         {
            QuantityRequired = requestDto.QuantityRequired,
            HospitalId = requestDto.HospitalId,
-           UrgencyLevel = requestDto.UrgencyLevel,
            Longitude = requestDto.Longitude,
            Latitude = requestDto.Latitude,
            Deadline = requestDto.Deadline,

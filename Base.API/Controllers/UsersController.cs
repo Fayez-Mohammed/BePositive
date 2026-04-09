@@ -2,14 +2,11 @@
 using Base.Shared.DTOs;
 using Base.Shared.Enums;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Base.API.Controllers
 {
-  //  [ApiExplorerSettings(IgnoreApi = true)]
     [Authorize(Roles = "SystemAdmin")]
-   // [Authorize(Policy = "ActiveUserOnly")]
     [Route("api/users")]
     [ApiController]
     public class UsersController : ControllerBase
@@ -21,7 +18,7 @@ namespace Base.API.Controllers
             _userProfileService = userProfileService;
         }
 
-        // GET: api/users
+       
         [HttpGet("list")]
         public async Task<ActionResult<UserListDto>> GetAll(
             [FromQuery] string? search,
@@ -34,7 +31,7 @@ namespace Base.API.Controllers
             return Ok(result);
         }
 
-        // GET: api/users/{id}
+       
         [HttpGet("get-user")]
         public async Task<ActionResult<UserDto>> GetById(string id)
         {
@@ -44,7 +41,7 @@ namespace Base.API.Controllers
             return Ok(user);
         }
 
-        // POST: api/users
+        
         [HttpPost("create")]
         public async Task<ActionResult<UserDto>> Create(CreateUserRequest request)
         {
@@ -53,7 +50,6 @@ namespace Base.API.Controllers
             return Ok(user);
         }
 
-        // PUT: api/users/{id}
         [HttpPut("update")]
         public async Task<ActionResult<UserDto>> Update(string id, UpdateUserRequest request)
         {
@@ -64,7 +60,6 @@ namespace Base.API.Controllers
             return Ok(user);
         }
 
-        // PATCH: api/users/{id}/toggle-active
         [HttpPatch("toggle-active")]
         public async Task<IActionResult> ToggleActive(string id)
         {
@@ -74,7 +69,6 @@ namespace Base.API.Controllers
             return Ok();
         }
 
-        // DELETE: api/users/{id}
         [HttpDelete("delete")]
         public async Task<IActionResult> Delete(string id)
         {
@@ -84,7 +78,6 @@ namespace Base.API.Controllers
             return Ok();
         }
 
-        // PATCH: api/users/{id}/change-password
         [HttpPatch("change-password")]
         public async Task<IActionResult> ChangePassword(string id, [FromBody] string newPassword)
         {

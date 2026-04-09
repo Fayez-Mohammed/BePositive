@@ -14,6 +14,9 @@ using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt;
 using TimeZoneConverter;
 using Base.API.Controllers;
+using CommunityApp.Implementations;
+using CommunityApp.Interfaces;
+
 internal class Program
 {
     private static async Task Main(string[] args)
@@ -35,9 +38,11 @@ internal class Program
 
         builder.Services.AddEndpointsApiExplorer();
 
-        builder.Services.AddSwaggerGen();
-        builder.Services.AddScoped<DonationRequestService>();
-        
+        builder.Services.AddSwaggerGen(); 
+        builder.Services.AddScoped<IPostRepository, PostRepository>();
+        builder.Services.AddScoped<ICommentRepository, CommentRepository>();
+        builder.Services.AddScoped<ILikeRepository, LikeRepository>();
+        builder.Services.AddScoped<IPhotoRepository, PhotoRepository>();
 
         var app = builder.Build();
        

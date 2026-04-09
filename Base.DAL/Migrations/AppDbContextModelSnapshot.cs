@@ -1347,6 +1347,329 @@ namespace Base.DAL.Migrations
                     b.ToTable("BlacklistedTokens");
                 });
 
+            modelBuilder.Entity("BloodManagement.Gamification.Domain.Achievement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PointsAwarded")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TargetValue")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Achievements");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Description = "Complete your first blood donation",
+                            Icon = "heart",
+                            Name = "First Drop",
+                            PointsAwarded = 100,
+                            TargetValue = 1,
+                            Type = "SingleEvent"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000002"),
+                            Description = "Save 3 lives through donations",
+                            Icon = "star",
+                            Name = "Life Saver",
+                            PointsAwarded = 250,
+                            TargetValue = 3,
+                            Type = "Cumulative"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000003"),
+                            Description = "Reach Gold tier status",
+                            Icon = "trophy",
+                            Name = "Gold Donor",
+                            PointsAwarded = 500,
+                            TargetValue = 2000,
+                            Type = "TierBased"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000004"),
+                            Description = "Donate within 5 days of request",
+                            Icon = "lightning",
+                            Name = "Speed Demon",
+                            PointsAwarded = 150,
+                            TargetValue = 5,
+                            Type = "TimeBased"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000005"),
+                            Description = "Donate 3 times in a year",
+                            Icon = "lock",
+                            Name = "Consistency Champion",
+                            PointsAwarded = 300,
+                            TargetValue = 3,
+                            Type = "Cumulative"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000006"),
+                            Description = "Reach Platinum tier status",
+                            Icon = "lock",
+                            Name = "Platinum Hero",
+                            PointsAwarded = 1000,
+                            TargetValue = 3000,
+                            Type = "TierBased"
+                        });
+                });
+
+            modelBuilder.Entity("BloodManagement.Gamification.Domain.Reward", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Image")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Rewards");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000007"),
+                            Description = "Comprehensive health screening",
+                            Image = "health_checkup_icon",
+                            Name = "Free Health Checkup",
+                            Type = "Service"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000008"),
+                            Description = "Limited edition donor merch",
+                            Image = "tshirt_icon",
+                            Name = "Be Positive T-Shirt",
+                            Type = "PhysicalItem"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000009"),
+                            Description = "Skip the wait for 6 months",
+                            Image = "alarm_icon",
+                            Name = "Priority Scheduling",
+                            Type = "Service"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000010"),
+                            Description = "$25 Starbucks gift card",
+                            Image = "coffee_icon",
+                            Name = "Coffee Voucher",
+                            Type = "Voucher"
+                        });
+                });
+
+            modelBuilder.Entity("BloodManagement.Gamification.Domain.UserGamificationProfile", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("CurrentTier")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("UserGamificationProfiles");
+                });
+
+            modelBuilder.Entity("CommunityApp.Models.Comment", b =>
+                {
+                    b.Property<int>("CommentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CommentId"));
+
+                    b.Property<DateTime>("CommentDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PostId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("CommentId");
+
+                    b.HasIndex("PostId");
+
+                    b.ToTable("Comments");
+                });
+
+            modelBuilder.Entity("CommunityApp.Models.Community", b =>
+                {
+                    b.Property<int>("CommunityId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CommunityId"));
+
+                    b.Property<DateTime>("CreationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("OwnerId")
+                        .HasColumnType("int");
+
+                    b.HasKey("CommunityId");
+
+                    b.ToTable("Community");
+                });
+
+            modelBuilder.Entity("CommunityApp.Models.Like", b =>
+                {
+                    b.Property<int>("LikeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("LikeId"));
+
+                    b.Property<int?>("CommentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("LikeDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("PostId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("LikeId");
+
+                    b.HasIndex("CommentId");
+
+                    b.HasIndex("PostId");
+
+                    b.ToTable("Likes");
+                });
+
+            modelBuilder.Entity("CommunityApp.Models.Photo", b =>
+                {
+                    b.Property<int>("PhotoId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PhotoId"));
+
+                    b.Property<string>("Caption")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("CommentId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PostId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UploadDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("PhotoId");
+
+                    b.HasIndex("CommentId");
+
+                    b.HasIndex("PostId");
+
+                    b.ToTable("Photos");
+                });
+
+            modelBuilder.Entity("CommunityApp.Models.Post", b =>
+                {
+                    b.Property<int>("PostId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PostId"));
+
+                    b.Property<int>("CommunityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("PostDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("PostId");
+
+                    b.HasIndex("CommunityId");
+
+                    b.ToTable("Posts");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
@@ -1785,6 +2108,193 @@ namespace Base.DAL.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("BloodManagement.Gamification.Domain.Reward", b =>
+                {
+                    b.OwnsOne("BloodManagement.Gamification.Domain.Points", "Cost", b1 =>
+                        {
+                            b1.Property<Guid>("RewardId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int>("Value")
+                                .HasColumnType("int")
+                                .HasColumnName("Cost");
+
+                            b1.HasKey("RewardId");
+
+                            b1.ToTable("Rewards");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RewardId");
+
+                            b1.HasData(
+                                new
+                                {
+                                    RewardId = new Guid("00000000-0000-0000-0000-000000000007"),
+                                    Value = 500
+                                },
+                                new
+                                {
+                                    RewardId = new Guid("00000000-0000-0000-0000-000000000008"),
+                                    Value = 750
+                                },
+                                new
+                                {
+                                    RewardId = new Guid("00000000-0000-0000-0000-000000000009"),
+                                    Value = 1000
+                                },
+                                new
+                                {
+                                    RewardId = new Guid("00000000-0000-0000-0000-000000000010"),
+                                    Value = 1500
+                                });
+                        });
+
+                    b.Navigation("Cost")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BloodManagement.Gamification.Domain.UserGamificationProfile", b =>
+                {
+                    b.OwnsOne("BloodManagement.Gamification.Domain.Points", "TotalPoints", b1 =>
+                        {
+                            b1.Property<string>("UserGamificationProfileUserId")
+                                .HasColumnType("nvarchar(450)");
+
+                            b1.Property<int>("Value")
+                                .HasColumnType("int")
+                                .HasColumnName("TotalPoints");
+
+                            b1.HasKey("UserGamificationProfileUserId");
+
+                            b1.ToTable("UserGamificationProfiles");
+
+                            b1.WithOwner()
+                                .HasForeignKey("UserGamificationProfileUserId");
+                        });
+
+                    b.OwnsMany("BloodManagement.Gamification.Domain.UserAchievement", "Achievements", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("int");
+
+                            SqlServerPropertyBuilderExtensions.UseIdentityColumn(b1.Property<int>("Id"));
+
+                            b1.Property<Guid>("AchievementId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int>("CurrentProgress")
+                                .HasColumnType("int");
+
+                            b1.Property<string>("Status")
+                                .IsRequired()
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<DateTime?>("UnlockedDate")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("UserId")
+                                .IsRequired()
+                                .HasColumnType("nvarchar(450)");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("UserId");
+
+                            b1.ToTable("UserAchievement");
+
+                            b1.WithOwner()
+                                .HasForeignKey("UserId");
+                        });
+
+                    b.OwnsMany("BloodManagement.Gamification.Domain.UserReward", "RedeemedRewards", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("int");
+
+                            SqlServerPropertyBuilderExtensions.UseIdentityColumn(b1.Property<int>("Id"));
+
+                            b1.Property<DateTime>("RedeemedDate")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<Guid>("RewardId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("UserId")
+                                .IsRequired()
+                                .HasColumnType("nvarchar(450)");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("UserId");
+
+                            b1.ToTable("UserReward");
+
+                            b1.WithOwner()
+                                .HasForeignKey("UserId");
+                        });
+
+                    b.Navigation("Achievements");
+
+                    b.Navigation("RedeemedRewards");
+
+                    b.Navigation("TotalPoints")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CommunityApp.Models.Comment", b =>
+                {
+                    b.HasOne("CommunityApp.Models.Post", "Post")
+                        .WithMany("Comments")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Post");
+                });
+
+            modelBuilder.Entity("CommunityApp.Models.Like", b =>
+                {
+                    b.HasOne("CommunityApp.Models.Comment", "Comment")
+                        .WithMany("Likes")
+                        .HasForeignKey("CommentId");
+
+                    b.HasOne("CommunityApp.Models.Post", "Post")
+                        .WithMany("Likes")
+                        .HasForeignKey("PostId");
+
+                    b.Navigation("Comment");
+
+                    b.Navigation("Post");
+                });
+
+            modelBuilder.Entity("CommunityApp.Models.Photo", b =>
+                {
+                    b.HasOne("CommunityApp.Models.Comment", "Comment")
+                        .WithMany("Photos")
+                        .HasForeignKey("CommentId");
+
+                    b.HasOne("CommunityApp.Models.Post", "Post")
+                        .WithMany("Photos")
+                        .HasForeignKey("PostId");
+
+                    b.Navigation("Comment");
+
+                    b.Navigation("Post");
+                });
+
+            modelBuilder.Entity("CommunityApp.Models.Post", b =>
+                {
+                    b.HasOne("CommunityApp.Models.Community", "Community")
+                        .WithMany("Posts")
+                        .HasForeignKey("CommunityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Community");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -1902,6 +2412,27 @@ namespace Base.DAL.Migrations
                     b.Navigation("Notifications");
 
                     b.Navigation("Responses");
+                });
+
+            modelBuilder.Entity("CommunityApp.Models.Comment", b =>
+                {
+                    b.Navigation("Likes");
+
+                    b.Navigation("Photos");
+                });
+
+            modelBuilder.Entity("CommunityApp.Models.Community", b =>
+                {
+                    b.Navigation("Posts");
+                });
+
+            modelBuilder.Entity("CommunityApp.Models.Post", b =>
+                {
+                    b.Navigation("Comments");
+
+                    b.Navigation("Likes");
+
+                    b.Navigation("Photos");
                 });
 #pragma warning restore 612, 618
         }

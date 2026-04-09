@@ -23,3 +23,11 @@ namespace Base.DAL.Models.BaseModels
         }
     }
 }
+
+// Base : Entity : string 
+
+
+// Microsoft Id (string) User 
+
+
+// Product int 
