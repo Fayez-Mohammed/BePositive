@@ -10,7 +10,7 @@ namespace Base.Services.Interfaces
         Task<UserDto> CreateAsync(CreateUserRequest request);
         Task<UserDto?> UpdateAsync(string id, UpdateUserRequest request);
         Task<bool> ToggleActiveAsync(string id);
-        Task<bool> DeleteAsync(string id);
-        Task<bool> ChangePasswordAsync(string userId, string newPassword);
+        Task<string> DeleteAsync(string id);
+        Task<bool> ChangePasswordAsync(string userId, string oldPassword, string newPassword);
     }
 }

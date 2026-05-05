@@ -16,6 +16,9 @@ namespace Base.DAL.Models.BaseModels
         //public string UserType { get; set; }
         public UserTypes Type { get; set; }
         public bool IsActive { get; set; } = true;
+        public bool IsDeleted { get; set; } = false;
+        public DateTime DateOfCreattion { get; set; }= DateTime.Now;
+
         public string? ImagePath { get; set; }
         public virtual UserProfile? Profile { get; set; }
         public virtual SystemAdminProfile? SystemAdminProfile { get; set; }

@@ -22,6 +22,7 @@ namespace Base.Shared.DTOs
         public string? ImagePath { get; set; }
         public DateTime DateOfCreation { get; set; }
         public int FarmsCount { get; set; }
+        public bool IsDeleted { get; set; }
     }
 
     // DTOs/Users/UserListDto.cs
@@ -49,8 +50,10 @@ namespace Base.Shared.DTOs
     public class UpdateUserRequest
     {
         public string? FullName { get; set; }
-        public UserTypes? UserType { get; set; }
-        public bool? IsActive { get; set; }
+        public string? Email { get; set; }
+        public string ? PhoneNumber { get; set; }
+        // public UserTypes? UserType { get; set; }
+        // public bool? IsActive { get; set; }
         public string? ImagePath { get; set; }
     }
 

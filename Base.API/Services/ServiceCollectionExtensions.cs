@@ -5,6 +5,7 @@ using Base.DAL.Models.BaseModels;
 using Base.DAL.Models.SystemModels;
 using Base.Repo.Implementations;
 using Base.Repo.Interfaces;
+using Base.Services.HangfireJobs;
 using Base.Services.Implementations;
 using Base.Services.Implementations.HospitalImplementations;
 using Base.Services.Interfaces;
@@ -19,6 +20,7 @@ using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System;
@@ -43,6 +45,7 @@ namespace Base.API.Services
             services.AddResponseAndCaching(configuration);
             services.AddAuthorizationPolicies();
             services.AddScoped<IBloodRequestService, BloodRequestService>();
+
             return services;
         }
 
@@ -151,6 +154,7 @@ namespace Base.API.Services
                 // رسائل مصممة للـ API - لا تظهر تفاصيل كثيرة في الإنتاج
                 options.Events = new JwtBearerEvents
                 {
+                   
                     OnChallenge = async context =>
                     {
                         context.HandleResponse();
@@ -248,6 +252,11 @@ namespace Base.API.Services
             services.AddScoped<IAdminDonorService, AdminDonorService>();
             services.AddScoped<IAdminUserService, AdminUserService>();
             services.AddScoped<IAdminAnalyticsService, AdminAnalyticsService>();
+            services.AddScoped<IFcmService, FcmService>();
+            services.AddScoped<FindAndNotifyDonorsJob>();
+            services.AddScoped<IMessagingService, MessagingService>();
+            services.AddSingleton<PresenceTracker>();
+            services.AddScoped<IAdminBloodRequestService, AdminBloodRequestService>();
             // -----------------------
             // إذا كان لديك أي service صغيرة stateless → استخدم Transient
             // -----------------------
@@ -268,6 +277,7 @@ namespace Base.API.Services
         {
             // Controllers + JSON options
             services.AddControllers()
+
                 .AddJsonOptions(options =>
                 {
                     options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
@@ -275,7 +285,13 @@ namespace Base.API.Services
                     options.JsonSerializerOptions.DictionaryKeyPolicy = new LowerCaseNamingPolicy();
                     options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
                 });
-
+            services.AddSignalR(options =>
+            {
+                options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
+                options.HandshakeTimeout = TimeSpan.FromSeconds(30);
+                options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+                options.EnableDetailedErrors = true;
+            });
             services.AddEndpointsApiExplorer();
 
             // CORS - استخدم قائمة origins من الـ config (آمن وقابل للتغيير لكل بيئة)
@@ -302,18 +318,63 @@ namespace Base.API.Services
             //});
             // Program.cs
 
+            // services.AddCors(options =>
+            //{
+            //    options.AddPolicy("AllowAll", policy =>
+            //    {
+            //        policy
+            //            .AllowAnyOrigin()
+            //            .AllowAnyMethod()
+            //            .AllowAnyHeader();
+            //    });
+            //});
+            ////services.AddCors(options =>
+            ////{
+            ////    options.AddPolicy("AllowAll", policy =>
+            ////    {
+            ////        policy
+
+            ////            .WithOrigins(
+            ////                "http://localhost:3000",   // dev React
+            ////                "https://spruce-reset-63901777.figma.site",   // dev Figma
+            ////                "https://organization-bepositive.vercel.app",   // dev Figma
+            ////                "https://admin-bepositive.vercel.app",   // dev Figma
+            ////                "http://localhost:5173",   // dev Vite
+            ////                "https://localhost:5173",   // dev Vite
+            ////                "https://bepositive.runasp.net" // production
+            ////            )
+            ////            .AllowAnyMethod()
+            ////            .AllowAnyHeader()
+            ////            .AllowCredentials(); // ← required for SignalR
+            ////    });
+            ////});
+            ////// ─── must be BEFORE app.UseAuthorization() ───
+            ////return services;
+            ///services.AddCors(options =>
+
              services.AddCors(options =>
+            
             {
                 options.AddPolicy("AllowAll", policy =>
                 {
                     policy
-                        .AllowAnyOrigin()
+                        .SetIsOriginAllowed(origin =>
+                        {
+                            return origin == "http://localhost:3000" ||
+                                   origin == "http://localhost:5173" ||
+                                   origin == "https://localhost:5173" ||
+                                   origin.Contains(".figma.site") ||
+                                   origin.Contains(".vercel.app") ||
+                                   origin == "https://bepositive.runasp.net";
+                        })
+                        .AllowAnyHeader()
                         .AllowAnyMethod()
-                        .AllowAnyHeader();
+                        .AllowCredentials();
                 });
+
             });
 
-            // ─── must be BEFORE app.UseAuthorization() ───
+
             return services;
         }
 

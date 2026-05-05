@@ -3,6 +3,7 @@ using Base.DAL.Models.BloodModels;
 using Base.DAL.Models.DonorModels;
 using Base.DAL.Models.HospitalModels;
 using Base.DAL.Models.InventoryModels;
+using Base.DAL.Models.MessagingModels;
 using Base.DAL.Models.RequestModels;
 using Base.DAL.Models.SystemModels;
 using Base.Shared.Responses;
@@ -110,5 +111,11 @@ namespace Base.DAL.Contexts
         public DbSet<BloodInventoryBatch> BloodInventoryBatches { get; set; }
         public DbSet<BloodInventoryTransaction> BloodInventoryTransactions { get; set; }
         #endregion
+
+
+
+        // ── Messaging ───────────────────────────────────────────
+        public DbSet<Conversation> Conversations { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
     }
 }

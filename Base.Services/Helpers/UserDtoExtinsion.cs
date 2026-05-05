@@ -24,8 +24,10 @@ namespace Base.Services.Helpers
                 UserName = user.UserName ?? "NA",
                 Email = user.Email ?? "NA",
                 PhoneNumber = user.PhoneNumber,
+                DateOfCreation = user.DateOfCreattion,
+                IsDeleted= user.IsDeleted,
                 //UserType = user.UserType,
-                UserType= user.Type,
+                UserType = user.Type,
                 IsActive = user.IsActive,
                 ImagePath = user.ImagePath
             };

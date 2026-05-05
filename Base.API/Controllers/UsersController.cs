@@ -1,9 +1,11 @@
-﻿using Base.Services.Interfaces;
+﻿using Base.API.DTOs;
+using Base.Services.Interfaces;
 using Base.Shared.DTOs;
 using Base.Shared.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Base.API.Controllers
 {
@@ -79,23 +81,36 @@ namespace Base.API.Controllers
         public async Task<IActionResult> Delete(string id)
         {
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentNullException(nameof(id));
-            var success = await _userProfileService.DeleteAsync(id);
-            if (!success) return Forbid();
-            return Ok();
+            var resultMessage = await _userProfileService.DeleteAsync(id);
+            
+            return Ok(resultMessage);
         }
 
-        // PATCH: api/users/{id}/change-password
+        // PATCH: api/users/change-password
         [HttpPatch("change-password")]
-        public async Task<IActionResult> ChangePassword(string id, [FromBody] string newPassword)
+        [Authorize]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto model)
         {
-            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentNullException(nameof(id));
-            if (string.IsNullOrEmpty(newPassword)) throw new ArgumentNullException(nameof(newPassword));
-            if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 6)
-                return BadRequest("Password must be at least 6 characters.");
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-            var success = await _userProfileService.ChangePasswordAsync(id, newPassword);
-            if (!success) return Forbid();
-            return Ok();
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+            if (model == null ||
+                string.IsNullOrWhiteSpace(model.OldPassword) ||
+                string.IsNullOrWhiteSpace(model.NewPassword))
+                return BadRequest("Old and new password are required.");
+
+            if (model.NewPassword.Length < 6)
+                return BadRequest("New password must be at least 6 characters.");
+
+            var success = await _userProfileService
+                .ChangePasswordAsync(userId, model.OldPassword, model.NewPassword);
+
+            if (!success)
+                return BadRequest("Old password is incorrect or new password is invalid.");
+
+            return Ok("Password changed successfully.");
         }
     }
 }

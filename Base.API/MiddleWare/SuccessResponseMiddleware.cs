@@ -20,6 +20,11 @@ namespace Base.API.MiddleWare
                 await _next(context);
                 return;
             }
+            if (context.Request.Path.StartsWithSegments("/hubs"))
+            {
+                await _next(context);
+                return;
+            }
 
             var originalBody = context.Response.Body;
             await using var tempBody = new MemoryStream();

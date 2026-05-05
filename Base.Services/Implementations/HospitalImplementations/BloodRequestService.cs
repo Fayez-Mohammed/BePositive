@@ -1,11 +1,14 @@
-﻿// Base.Services/Implementations/BloodRequestService.cs
+// Base.Services/Implementations/BloodRequestService.cs
 
 using Base.DAL.Contexts;
 using Base.DAL.Models.RequestModels;
+using Base.Services.HangfireJobs;
 using Base.Services.Interfaces.HospitalInterfaces;
 using Base.Shared.DTOs.HospitalDTOs;
 using Base.Shared.Enums;
+using Base.Services.HangFireJobs;
 using Microsoft.EntityFrameworkCore;
+using Hangfire;
 
 namespace Base.Services.Implementations.HospitalImplementations
 {
@@ -23,81 +26,101 @@ namespace Base.Services.Implementations.HospitalImplementations
             string hospitalAdminUserId,
             CreateBloodRequestDTO dto)
         {
-            // 1. Get hospital from admin user
+            // 1. Get hospital admin — scalars only to avoid enum cast issues
             var hospitalAdmin = await _context.HospitalAdmins
-                .Include(ha => ha.Hospital)
-                .FirstOrDefaultAsync(ha =>
-                    ha.UserId == hospitalAdminUserId &&
-                    !ha.IsDeleted);
+                .AsNoTracking()
+                .Where(ha => ha.UserId == hospitalAdminUserId && !ha.IsDeleted)
+                .Select(ha => new { ha.HospitalId })
+                .FirstOrDefaultAsync();
 
             if (hospitalAdmin == null)
                 throw new UnauthorizedAccessException(
                     "No active hospital admin record found.");
 
-            var hospital = hospitalAdmin.Hospital;
+            // 2. Get hospital — cast Status to int to avoid LazyLoadingProxy error
+            var hospital = await _context.Hospitals
+                .AsNoTracking()
+                .Where(h => h.Id == hospitalAdmin.HospitalId && !h.IsDeleted)
+                .Select(h => new
+                {
+                    h.Id,
+                    h.Name,
+                    h.Latitude,
+                    h.Longitude,
+                    StatusInt = (int)h.Status
+                })
+                .FirstOrDefaultAsync();
 
-            if (hospital == null || hospital.IsDeleted)
+            if (hospital == null)
                 throw new UnauthorizedAccessException(
                     "Associated hospital not found.");
 
-            if (hospital.Status != HospitalStatus.Active)
+            // HospitalStatus.Active = 2
+            if (hospital.StatusInt != 2)
                 throw new InvalidOperationException(
                     "Your hospital must be active to create blood requests.");
 
-            // 2. Validate blood type exists
+            // 3. Validate blood type
             var bloodType = await _context.BloodTypes
-                .FirstOrDefaultAsync(b => b.Id == dto.BloodTypeId);
+                .AsNoTracking()
+                .Where(b => b.Id == dto.BloodTypeId)
+                .Select(b => new { b.Id, b.TypeName })
+                .FirstOrDefaultAsync();
 
             if (bloodType == null)
                 throw new ArgumentException("Invalid blood type selected.");
 
-            // 3. Create the donation request
+            // 4. Create the donation request
             var request = new DonationRequest
             {
-                HospitalId = hospital.Id,
-                BloodTypeId = dto.BloodTypeId,
-                QuantityRequired = dto.QuantityRequired,
+                HospitalId        = hospital.Id,
+                BloodTypeId       = dto.BloodTypeId,
+                QuantityRequired  = dto.QuantityRequired,
                 QuantityFulfilled = 0,
-                UrgencyLevel = dto.UrgencyLevel,
-                Note = dto.Note,
-                Deadline = dto.Deadline,
-                Status = RequestStatus.Open,
-                Latitude = hospital.Latitude,
-                Longitude = hospital.Longitude,
-                IsDeleted = false
+                UrgencyLevel      = dto.UrgencyLevel,
+                Note              = dto.Note,
+                Deadline          = dto.Deadline,
+                Status            = RequestStatus.Open,
+                Latitude          = hospital.Latitude,
+                Longitude         = hospital.Longitude,
+                IsDeleted         = false
             };
 
             _context.DonationRequests.Add(request);
             await _context.SaveChangesAsync();
 
-            // 4. Create in-app notification for the hospital admin
+            // 5. Create in-app notification for the hospital admin
             var notification = new Notification
             {
-                UserId = hospitalAdminUserId,
-                Title = "Blood Request Created",
-                Body = $"Your request for {bloodType.TypeName} blood has been submitted successfully.",
-                IsRead = false,
+                UserId           = hospitalAdminUserId,
+                Title            = "Blood Request Created",
+                Body             = $"Your request for {bloodType.TypeName} blood has been submitted successfully.",
+                IsRead           = false,
                 RelatedRequestId = request.Id
             };
 
             _context.Notifications.Add(notification);
             await _context.SaveChangesAsync();
 
-            // 5. Return response
+            // 6. Enqueue Hangfire job to find eligible nearby donors and notify them
+            BackgroundJob.Enqueue<FindAndNotifyDonorsJob>(
+                job => job.ExecuteAsync(request.Id));
+
+            // 7. Return response
             return new BloodRequestResponseDTO
             {
-                Id = request.Id,
-                HospitalId = hospital.Id,
-                HospitalName = hospital.Name,
-                BloodTypeId = bloodType.Id,
-                BloodTypeName = bloodType.TypeName,
-                QuantityRequired = request.QuantityRequired,
+                Id                = request.Id,
+                HospitalId        = hospital.Id,
+                HospitalName      = hospital.Name,
+                BloodTypeId       = bloodType.Id,
+                BloodTypeName     = bloodType.TypeName,
+                QuantityRequired  = request.QuantityRequired,
                 QuantityFulfilled = 0,
-                UrgencyLevel = request.UrgencyLevel,
-                Status = request.Status,
-                Note = request.Note,
-                Deadline = request.Deadline,
-                CreatedAt = request.DateOfCreattion
+                UrgencyLevel      = request.UrgencyLevel,
+                Status            = request.Status,
+                Note              = request.Note,
+                Deadline          = request.Deadline,
+                CreatedAt         = request.DateOfCreattion
             };
         }
 
@@ -138,7 +161,8 @@ namespace Base.Services.Implementations.HospitalImplementations
                     (r.Note != null && r.Note.ToLower().Contains(search)));
             }
 
-            var total = await q.CountAsync();
+            var total       = await q.CountAsync();
+            var totalActive = await q.Where(r => r.Status == RequestStatus.Open).CountAsync();
 
             // ── Main query ────────────────────────────────────────────
             var requests = await q
@@ -147,32 +171,34 @@ namespace Base.Services.Implementations.HospitalImplementations
                 .Take(query.Limit)
                 .Select(r => new BloodRequestSummaryDTO
                 {
-                    Id = r.Id,
-                    HospitalId = r.HospitalId,
-                    BloodTypeId = r.BloodTypeId,
-                    BloodTypeName = r.BloodType.TypeName,
-                    QuantityRequired = r.QuantityRequired,
+                    Id                = r.Id,
+                    HospitalId        = r.HospitalId,
+                    BloodTypeId       = r.BloodTypeId,
+                    BloodTypeName     = r.BloodType.TypeName,
+                    QuantityRequired  = r.QuantityRequired,
                     QuantityFulfilled = r.QuantityFulfilled,
-                    ProgressPercent = r.QuantityRequired == 0 ? 0
-                                        : Math.Round(
-                                            (double)r.QuantityFulfilled / r.QuantityRequired * 100, 1),
-                    UrgencyLevel = r.UrgencyLevel,
-                    Status = r.Status,
-                    Note = r.Note,
-                    Deadline = r.Deadline,
-                    CreatedAt = r.DateOfCreattion
+                    ProgressPercent   = r.QuantityRequired == 0 ? 0
+                                            : Math.Round(
+                                                (double)r.QuantityFulfilled /
+                                                r.QuantityRequired * 100, 1),
+                    UrgencyLevel      = r.UrgencyLevel,
+                    Status            = r.Status,
+                    Note              = r.Note,
+                    Deadline          = r.Deadline,
+                    CreatedAt         = r.DateOfCreattion
                 })
                 .ToListAsync();
 
             return new BloodRequestListResult
             {
-                Success = true,
-                Message = "Requests retrieved successfully.",
-                Total = total,
-                Page = query.Page,
-                Limit = query.Limit,
+                Success    = true,
+                Message    = "Requests retrieved successfully.",
+                Total      = total,
+                TotalActive = totalActive,
+                Page       = query.Page,
+                Limit      = query.Limit,
                 TotalPages = (int)Math.Ceiling((double)total / query.Limit),
-                Value = requests
+                Value      = requests
             };
         }
 
@@ -200,7 +226,7 @@ namespace Base.Services.Implementations.HospitalImplementations
                     r.Id,
                     r.HospitalId,
                     r.BloodTypeId,
-                    BloodTypeName = r.BloodType.TypeName,
+                    BloodTypeName     = r.BloodType.TypeName,
                     r.QuantityRequired,
                     r.QuantityFulfilled,
                     r.UrgencyLevel,
@@ -225,46 +251,70 @@ namespace Base.Services.Implementations.HospitalImplementations
                 .AsNoTracking()
                 .Where(rr => rr.RequestId == requestId)
                 .GroupBy(rr => rr.Status)
-                .Select(g => new
-                {
-                    Status = g.Key,
-                    Count = g.Count()
-                })
+                .Select(g => new { Status = g.Key, Count = g.Count() })
                 .ToListAsync();
 
             int totalResponses = responseCounts.Sum(x => x.Count);
-            int accepted = responseCounts.FirstOrDefault(x => x.Status == ResponseStatus.Accepted)?.Count ?? 0;
-            int arrived = responseCounts.FirstOrDefault(x => x.Status == ResponseStatus.Arrived)?.Count ?? 0;
-            int donated = responseCounts.FirstOrDefault(x => x.Status == ResponseStatus.Donated)?.Count ?? 0;
-            int noShow = responseCounts.FirstOrDefault(x => x.Status == ResponseStatus.NoShow)?.Count ?? 0;
+            int accepted       = responseCounts.FirstOrDefault(x => x.Status == ResponseStatus.Accepted)?.Count ?? 0;
+            int arrived        = responseCounts.FirstOrDefault(x => x.Status == ResponseStatus.Arrived)?.Count  ?? 0;
+            int donated        = responseCounts.FirstOrDefault(x => x.Status == ResponseStatus.Donated)?.Count  ?? 0;
+            int noShow         = responseCounts.FirstOrDefault(x => x.Status == ResponseStatus.NoShow)?.Count   ?? 0;
+
+            // ── Donor responses list ──────────────────────────────────
+            var donorResponses = await _context.RequestResponses
+                .AsNoTracking()
+                .Where(rr => rr.RequestId == requestId)
+                .OrderByDescending(rr => rr.RespondedAt)
+                .Select(rr => new
+                {
+                    rr.Id,
+                    rr.DonorId,
+                    FullName      = rr.Donor.User.FullName,
+                    BloodTypeName = rr.Donor.BloodType.TypeName,
+                    StatusInt     = (int)rr.Status,
+                    rr.RespondedAt
+                })
+                .ToListAsync();
+
+            var donorResponseDTOs = donorResponses.Select(rr => new DonorResponseDTO
+            {
+                ResponseId    = rr.Id,
+                DonorId       = rr.DonorId,
+                FullName      = rr.FullName,
+                BloodTypeName = rr.BloodTypeName,
+                Status        = ((ResponseStatus)rr.StatusInt).ToString(),
+                RespondedAt   = rr.RespondedAt
+            }).ToList();
 
             return new BloodRequestDetailResult
             {
                 Success = true,
                 Message = "Request retrieved successfully.",
-                Value = new BloodRequestDetailDTO
+                Value   = new BloodRequestDetailDTO
                 {
-                    Id = raw.Id,
-                    HospitalId = raw.HospitalId,
-                    BloodTypeId = raw.BloodTypeId,
-                    BloodTypeName = raw.BloodTypeName,
-                    QuantityRequired = raw.QuantityRequired,
+                    Id                = raw.Id,
+                    HospitalId        = raw.HospitalId,
+                    BloodTypeId       = raw.BloodTypeId,
+                    BloodTypeName     = raw.BloodTypeName,
+                    QuantityRequired  = raw.QuantityRequired,
                     QuantityFulfilled = raw.QuantityFulfilled,
-                    ProgressPercent = raw.QuantityRequired == 0 ? 0
-                                        : Math.Round(
-                                            (double)raw.QuantityFulfilled / raw.QuantityRequired * 100, 1),
-                    UrgencyLevel = raw.UrgencyLevel,
-                    Status = raw.Status,
-                    Note = raw.Note,
-                    Deadline = raw.Deadline,
-                    Latitude = raw.Latitude,
-                    Longitude = raw.Longitude,
-                    CreatedAt = raw.DateOfCreattion,
-                    Responses = totalResponses,
-                    Accepted = accepted,
-                    Arrived = arrived,
-                    Donated = donated,
-                    NoShow = noShow
+                    ProgressPercent   = raw.QuantityRequired == 0 ? 0
+                                            : Math.Round(
+                                                (double)raw.QuantityFulfilled /
+                                                raw.QuantityRequired * 100, 1),
+                    UrgencyLevel      = raw.UrgencyLevel,
+                    Status            = raw.Status,
+                    Note              = raw.Note,
+                    Deadline          = raw.Deadline,
+                    Latitude          = raw.Latitude,
+                    Longitude         = raw.Longitude,
+                    CreatedAt         = raw.DateOfCreattion,
+                    Responses         = totalResponses,
+                    Accepted          = accepted,
+                    Arrived           = arrived,
+                    Donated           = donated,
+                    NoShow            = noShow,
+                    DonorResponses    = donorResponseDTOs
                 }
             };
         }
@@ -315,18 +365,18 @@ namespace Base.Services.Implementations.HospitalImplementations
 
             return new BloodRequestResponseDTO
             {
-                Id = request.Id,
-                HospitalId = request.HospitalId,
-                HospitalName = hospitalAdmin.Hospital?.Name ?? "",
-                BloodTypeId = request.BloodTypeId,
-                BloodTypeName = request.BloodType?.TypeName ?? "",
-                QuantityRequired = request.QuantityRequired,
+                Id                = request.Id,
+                HospitalId        = request.HospitalId,
+                HospitalName      = hospitalAdmin.Hospital?.Name ?? "",
+                BloodTypeId       = request.BloodTypeId,
+                BloodTypeName     = request.BloodType?.TypeName  ?? "",
+                QuantityRequired  = request.QuantityRequired,
                 QuantityFulfilled = request.QuantityFulfilled,
-                UrgencyLevel = request.UrgencyLevel,
-                Status = request.Status,
-                Note = request.Note,
-                Deadline = request.Deadline,
-                CreatedAt = request.DateOfCreattion
+                UrgencyLevel      = request.UrgencyLevel,
+                Status            = request.Status,
+                Note              = request.Note,
+                Deadline          = request.Deadline,
+                CreatedAt         = request.DateOfCreattion
             };
         }
 

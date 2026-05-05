@@ -54,12 +54,19 @@ namespace Base.Services.Implementations
             if (!string.IsNullOrEmpty(request.FullName))
                 user.FullName = request.FullName;
 
-            if (request.UserType.HasValue)
-                user.Type = request.UserType ?? user.Type;
+            //if (request.UserType.HasValue)
+            //    user.Type = request.UserType ?? user.Type;
 
-            if (request.IsActive.HasValue)
-                user.IsActive = request.IsActive.Value;
+            //if (request.IsActive.HasValue)
+            //    user.IsActive = request.IsActive.Value;
+            if (request.Email != null)
+            {
+                user.Email = request.Email;
+                user.UserName = request.Email; // Assuming username is the same as email
 
+            }
+            if(request.PhoneNumber != null)
+                user.PhoneNumber = request.PhoneNumber;
             if (!string.IsNullOrEmpty(request.ImagePath))
                 user.ImagePath = request.ImagePath;
 
@@ -79,32 +86,64 @@ namespace Base.Services.Implementations
             var result = await _userManager.UpdateAsync(user);
             return result.Succeeded;
         }
-        public async Task<bool> DeleteAsync(string id)
+        public async Task<string> DeleteAsync(string id)
         {
             var user = await _userManager.FindByIdAsync(id);
-            if (user == null) return false;
+            if (user == null) return "User Not Found";
+            if(await _userManager.IsInRoleAsync(user,UserTypes.SystemAdmin.ToString()) )
+                return "You cannot delete a system admin.";
+            if(user.IsDeleted) return "User is already marked as deleted.";
+            user.IsDeleted = true;
+            user.FullName=user.FullName+" (Deleted)";
+            user.Email=user.Email+" (Deleted)";
 
-            var result = await _userManager.DeleteAsync(user);
-            return result.Succeeded;
+            await _unitOfWork.CompleteAsync();
+            return "User marked as deleted.";
+
+
+           // var result = await _userManager.DeleteAsync(user);
+            //try
+            //{
+            //    await _unitOfWork.CompleteAsync();
+            //}
+            //catch (DbUpdateException ex)
+            //{
+            //    // ضع نقطة توقف (Breakpoint) هنا لرؤية تفاصيل الخطأ الفعلي من SQL Server
+            //    Console.WriteLine(ex.InnerException?.Message);
+            //    throw new InvalidOperationException("Cannot delete this record because it has related data.");
+            //}
+            //if (result.Succeeded)
+            //                    return "User deleted successfully.";
+            //else
+            //    return "Failed to delete user: " + string.Join(", ", result.Errors.Select(e => e.Description));
         }
-        public async Task<bool> ChangePasswordAsync(string userId, string newPassword)
+        //public async Task<bool> ChangePasswordAsync(string userId, string newPassword)
+        //{
+        //    var user = await _userManager.FindByIdAsync(userId);
+        //    if (user is null) return false;
+
+        //    var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+        //    var result = await _userManager.ResetPasswordAsync(user, token, newPassword);
+        //    return result.Succeeded;
+        //}
+        public async Task<bool> ChangePasswordAsync(string userId, string oldPassword, string newPassword)
         {
             var user = await _userManager.FindByIdAsync(userId);
-            if (user is null) return false;
+            if (user == null) return false;
 
-            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-            var result = await _userManager.ResetPasswordAsync(user, token, newPassword);
+            var result = await _userManager.ChangePasswordAsync(user, oldPassword, newPassword);
+
             return result.Succeeded;
         }
         public async Task<UserListDto> GetAllAsync(string? search, UserTypes? userType, bool? isActive, int page, int pageSize)
         {
-            var query = _userManager.Users.AsQueryable();
-
+            var query = _userManager.Users.Where(u=>u.IsDeleted==false).AsQueryable();
+            
             if (!string.IsNullOrWhiteSpace(search))
                 query = query.Where(u => u.FullName.Contains(search) || u.Email.Contains(search));
 
             if (userType.HasValue)
-                query = query.Where(u => u.Type == userType.Value);
+                query = query.Where(u => u.Type == userType.Value&&!u.IsDeleted);
 
             if (isActive.HasValue)
                 query = query.Where(u => u.IsActive == isActive.Value);
@@ -116,7 +155,7 @@ namespace Base.Services.Implementations
             var users = await query
                 .OrderBy(u => u.FullName)
                 .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Take(pageSize).OrderByDescending(u => u.DateOfCreattion)
                 .ToListAsync();
 
             var userDtos = users.ToUserDtoSet();// _mapper.Map<List<UserDto>>(users);

@@ -3,6 +3,7 @@ using Base.API.DTOs;
 using Base.DAL.Models.BaseModels;
 using Base.DAL.Models.SystemModels;
 using Base.Repo.Interfaces;
+using Base.Services.Helpers;
 using Base.Services.Implementations;
 using Base.Services.Interfaces;
 using Base.Shared.DTOs;
@@ -52,7 +53,10 @@ namespace Base.API.Controllers
         {
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentNullException(nameof(id));
             var user = await _userProfileService.GetByIdAsync(id);
+
             if (user == null) return NotFound();
+                  if(user.IsDeleted)
+                return NotFound("User account has been deleted.");
             return Ok(user);
         }
 
@@ -67,12 +71,15 @@ namespace Base.API.Controllers
 
         // PUT: api/users/{id}
         [HttpPut("update")]
-        public async Task<ActionResult<UserDto>> Update(string id, UpdateUserRequest request)
+        public async Task<ActionResult<UserDto>> Update(/*string id, */UpdateUserRequest request)
         {
-            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentNullException(nameof(id));
+            var id = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            //if (string.IsNullOrWhiteSpace(id)) throw new ArgumentNullException(nameof(id));
             if (request == null) throw new ArgumentNullException(nameof(request));
             var user = await _userProfileService.UpdateAsync(id, request);
             if (user == null) return NotFound();
+            if(user.IsDeleted)
+                return NotFound("User account has been deleted.");
             return Ok(user);
         }
 
@@ -91,25 +98,47 @@ namespace Base.API.Controllers
         public async Task<IActionResult> Delete(string id)
         {
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentNullException(nameof(id));
-            var success = await _userProfileService.DeleteAsync(id);
-            if (!success) return Forbid();
-            return Ok();
+            var resultMessage = await _userProfileService.DeleteAsync(id);
+           
+            return Ok(resultMessage);
         }
 
-        // PATCH: api/users/{id}/change-password
+        //[HttpPatch("change-password")]
+        //public async Task<IActionResult> ChangePassword(string id, [FromBody] ChangePasswordDto model)
+        //{
+        //    if (string.IsNullOrWhiteSpace(id)) throw new ArgumentNullException(nameof(id));
+        //    if (string.IsNullOrEmpty(model.NewPassword)) throw new ArgumentNullException(nameof(model.NewPassword));
+        //    if (model.NewPassword.Length < 6)
+        //        return BadRequest("Password must be at least 6 characters.");
+
+        //    var success = await _userProfileService.ChangePasswordAsync(id, model.NewPassword);
+        //    if (!success) return Forbid();
+        //    return Ok();
+        //}
         [HttpPatch("change-password")]
-        public async Task<IActionResult> ChangePassword(string id, [FromBody] string newPassword)
+    
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto model)
         {
-            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentNullException(nameof(id));
-            if (string.IsNullOrEmpty(newPassword)) throw new ArgumentNullException(nameof(newPassword));
-            if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 6)
-                return BadRequest("Password must be at least 6 characters.");
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-            var success = await _userProfileService.ChangePasswordAsync(id, newPassword);
-            if (!success) return Forbid();
-            return Ok();
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(model.OldPassword) ||
+                string.IsNullOrWhiteSpace(model.NewPassword))
+                return BadRequest("Old and new password are required.");
+
+            if (model.NewPassword.Length < 6)
+                return BadRequest("New password must be at least 6 characters.");
+
+            var success = await _userProfileService
+                .ChangePasswordAsync(userId, model.OldPassword, model.NewPassword);
+
+            if (!success)
+                return BadRequest("Old password is incorrect.");
+
+            return Ok("Password changed successfully.");
         }
-
         ///////////////////////////////
         /// <summary>
         /// Get All Users
@@ -130,7 +159,7 @@ namespace Base.API.Controllers
         {
             // 1. جلب جميع المستخدمين إلى الذاكرة.
             // يفضل استخدام ToListAsync() إذا كان متاحاً لجعلها عملية IO حقيقية.
-            var users = _userManager.Users.ToList();
+            var users = _userManager.Users.Where(u=>u.IsDeleted==false).ToList();
 
             if (users == null || !users.Any())
             {
@@ -183,38 +212,45 @@ namespace Base.API.Controllers
                 // 2. استخدام GetUserAsync لجلب المستخدم من الـ Claims في الـ HttpContext.
                 //    هذا هو الأسلوب الأكثر كفاءة وموصى به في ASP.NET Identity.
                 var user = await _userManager.GetUserAsync(User);
+                var userDto = user?.ToUserDto();
 
-                if (user == null)
+                if (userDto == null)
                 {
                     // قد يحدث إذا تم حذف المستخدم من قاعدة البيانات بعد إصدار التوكن.
                     // (يفضل تسجيل هذه الحالة).
                     // _logger.LogWarning("GetCurrentUser: User not found for authenticated token.");
                     throw new NotFoundException("User account no longer exists in the system.");
                 }
-
+                if(userDto.IsDeleted)
+                    {
+                    // قد يحدث إذا تم حذف المستخدم من قاعدة البيانات بعد إصدار التوكن.
+                    // (يفضل تسجيل هذه الحالة).
+                    // _logger.LogWarning("GetCurrentUser: User account is marked as deleted for authenticated token.");
+                    throw new NotFoundException("User account has been deleted.");
+                }
                 // 3. جلب الـ Roles والـ Profile (بقاء نفس منطق جلب البيانات).
-                var roles = await _userManager.GetRolesAsync(user);
-
+               // var roles = await _userManager.GetRolesAsync(user);
+                
                 // جلب الـ Profile مع معالجة احتمال عدم وجوده.
-                var profile = await profileRepository.GetByIdAsync(user.Id);
+             //   var profile = await profileRepository.GetByIdAsync(userDto.Id);
 
                 // 4. بناء الرد مع إزالة البيانات الحساسة غير الضرورية.
-                var result = new
-                {
-                    user.Id,
-                    user.Email,
-                    user.UserName,
-                    // التأكد من أن حقل الإيميل موجود للمستخدم
-                    IsEmailConfirmed = user.EmailConfirmed,
-                    Roles = roles,
-                    Profile = new
-                    {
-                        // استخدام Null-Conditional Operator (?.) لمعالجة حالة profile == null
-                        //FullName = profile?.FullName,
-                        //PhoneNumber = profile?.PhoneNumber,
-                    }
-                };
-                return Ok(new ApiResponseDTO(200, "Current User", result));
+                //var result = new
+                //{
+                //    user.Id,
+                //    user.Email,
+                //    user.UserName,
+                //    // التأكد من أن حقل الإيميل موجود للمستخدم
+                //    IsEmailConfirmed = user.EmailConfirmed,
+                //    Roles = roles,
+                //    Profile = new
+                //    {
+                //        // استخدام Null-Conditional Operator (?.) لمعالجة حالة profile == null
+                //        //FullName = profile?.FullName,
+                //        //PhoneNumber = profile?.PhoneNumber,
+                //    }
+                //};
+                return Ok(new ApiResponseDTO(200, "Current User", userDto));
             }
             catch (Exception ex)
             {
@@ -229,17 +265,11 @@ namespace Base.API.Controllers
         public async Task<IActionResult> DeleteUserByUserID(string userID)
         {
             if (string.IsNullOrWhiteSpace(userID))
-               throw new BadRequestException("User ID is required.");
+                throw new BadRequestException("User ID is required.");
 
-            var success = await _userProfileService.DeleteAsync(userID);
+            var resultMessage = await _userProfileService.DeleteAsync(userID);
+            return Ok(resultMessage);
 
-            if (!success)
-            {
-                // Either profile not found, or delete failed due to concurrency or user issue
-                throw new NotFoundException($"Failed to delete profile or user with ID '{userID}'.");
-            }
-
-            return Ok(new ApiResponseDTO(200,$"Profile and linked user (if exists) deleted successfully."));
         }
     }
 }

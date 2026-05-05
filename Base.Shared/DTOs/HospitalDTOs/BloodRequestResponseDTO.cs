@@ -37,6 +37,7 @@ namespace Base.Shared.DTOs.HospitalDTOs
         public bool Success { get; set; }
         public string Message { get; set; }
         public int Total { get; set; }
+        public int TotalActive { get; set; }
         public int Page { get; set; }
         public int Limit { get; set; }
         public int TotalPages { get; set; }
@@ -71,11 +72,25 @@ namespace Base.Shared.DTOs.HospitalDTOs
     {
         public decimal? Latitude { get; set; }
         public decimal? Longitude { get; set; }
-        public int Responses { get; set; } // total donor responses count
-        public int Accepted { get; set; } // accepted responses count
-        public int Arrived { get; set; } // arrived responses count
-        public int Donated { get; set; } // donated responses count
-        public int NoShow { get; set; } // no show responses count
+        public int Responses { get; set; }
+        public int Accepted { get; set; }
+        public int Arrived { get; set; }
+        public int Donated { get; set; }
+        public int NoShow { get; set; }
+
+        // ← ADD THIS
+        public List<DonorResponseDTO> DonorResponses { get; set; } = new();
+    }
+
+    // ← ADD THIS NEW CLASS
+    public class DonorResponseDTO
+    {
+        public string ResponseId { get; set; }
+        public string DonorId { get; set; }
+        public string FullName { get; set; }
+        public string BloodTypeName { get; set; }
+        public string Status { get; set; }
+        public DateTime RespondedAt { get; set; }
     }
 
     // ── Update Request ────────────────────────────────────────────

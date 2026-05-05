@@ -39,5 +39,13 @@ namespace Base.Shared.DTOs.HospitalDTOs
         [Required]
         [Compare("Password", ErrorMessage = "Passwords do not match.")]
         public string ConfirmPassword { get; set; }
+
+        [Required]
+        [Range(-90, 90)]
+        public decimal Latitude { get; set; }
+
+        [Required]
+        [Range(-180, 180)]
+        public decimal Longitude { get; set; }
     }
 }

@@ -20,6 +20,7 @@ namespace Base.DAL.Models.DonorModels
         public bool IsDeleted { get; set; } = false;
         public DateTime? DeletedAt { get; set; }
         public string? DeletedById { get; set; }
+        public string? FcmToken {  get; set; }
 
         // Navigation
         public virtual ApplicationUser User { get; set; }
