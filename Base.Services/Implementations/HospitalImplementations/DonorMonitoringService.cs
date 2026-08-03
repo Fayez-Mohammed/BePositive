@@ -10,7 +10,7 @@ namespace Base.Services.Implementations.HospitalImplementations
     public class DonorMonitoringService : IDonorMonitoringService
     {
         private readonly AppDbContext _context;
-        private const int CooldownDays = 56;
+        private const int CooldownDays = 90;
         private const int RecentDays = 30;
 
         public DonorMonitoringService(AppDbContext context)

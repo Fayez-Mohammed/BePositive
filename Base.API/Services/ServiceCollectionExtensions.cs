@@ -7,9 +7,11 @@ using Base.Repo.Implementations;
 using Base.Repo.Interfaces;
 using Base.Services.HangfireJobs;
 using Base.Services.Implementations;
+using Base.Services.Implementations.DonorImplementations;
 using Base.Services.Implementations.HospitalImplementations;
 using Base.Services.Interfaces;
 using Base.Services.Interfaces.HospitalInterfaces;
+using Base.Services.Interfaces.MessagesInterfaces;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -216,7 +218,15 @@ namespace Base.API.Services
         // ---------------------------------------------------------------------------------
         private static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
         {
-
+            // -----------------------------------------------------------------
+            // Blockchain Client Config (with Authorization & Headers)
+            // -----------------------------------------------------------------
+            services.AddHttpClient("BlockchainClient", client =>
+            {
+                client.BaseAddress = new Uri("https://blood-bank-blockchain-api-production.up.railway.app/");
+                client.DefaultRequestHeaders.Add("x-api-key", "blood-bank-super-secret-2004-eslam");
+                client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+            });
             // -----------------------
             // Memory Cache
             // -----------------------
@@ -257,6 +267,14 @@ namespace Base.API.Services
             services.AddScoped<IMessagingService, MessagingService>();
             services.AddSingleton<PresenceTracker>();
             services.AddScoped<IAdminBloodRequestService, AdminBloodRequestService>();
+            services.AddScoped<LogRequestToBlockchainJob>(); 
+            services.AddScoped<UpdateRequestOnBlockchainJob>();
+            services.AddScoped<SyncFulfillmentToBlockchainJob>();
+            // أضف هذا السطر لتسجيل الخدمة في الـ Container
+            services.AddScoped<IHospitalService, HospitalService>();
+            services.AddScoped<IDonorService, DonorService>();
+            services.AddScoped<IDonorMessagingService, DonorMessagingService>();
+            services.AddHttpClient<IMlPredictionService, MlPredictionService>();
             // -----------------------
             // إذا كان لديك أي service صغيرة stateless → استخدم Transient
             // -----------------------

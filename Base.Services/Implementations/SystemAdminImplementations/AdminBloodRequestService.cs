@@ -2,6 +2,7 @@
 
 using Base.DAL.Contexts;
 using Base.Services.Interfaces;
+using Base.Shared.DTOs.AdminDTOs;
 using Base.Shared.DTOs.SystemAdminDTOs;
 using Base.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -357,5 +358,212 @@ namespace Base.Services.Implementations
                 Value = hospitals
             };
         }
+        // new 
+        // ── GET /api/admin/requests/hospital/{hospitalId} ─────
+        public async Task<AdminRequestListResult> GetRequestsByHospitalAsync(
+            string hospitalId,
+            string? status,
+            string? urgencyLevel,
+            int page,
+            int limit)
+        {
+            // Validate hospital exists
+            var hospitalExists = await _context.Hospitals
+                .AsNoTracking()
+                .AnyAsync(h => h.Id == hospitalId && !h.IsDeleted);
+
+            if (!hospitalExists)
+                throw new KeyNotFoundException("Hospital not found.");
+
+            var q = _context.DonationRequests
+                .AsNoTracking()
+                .Where(r => r.HospitalId == hospitalId && !r.IsDeleted)
+                .AsQueryable();
+
+            // Filters
+            if (!string.IsNullOrWhiteSpace(status) &&
+                Enum.TryParse<RequestStatus>(status, true, out var parsedStatus))
+                q = q.Where(r => r.Status == parsedStatus);
+
+            if (!string.IsNullOrWhiteSpace(urgencyLevel) &&
+                Enum.TryParse<UrgencyLevel>(urgencyLevel, true, out var parsedUrgency))
+                q = q.Where(r => r.UrgencyLevel == parsedUrgency);
+
+            var total = await q.CountAsync();
+
+            var raws = await q
+                .OrderByDescending(r => r.DateOfCreattion)
+                .Skip((page - 1) * limit)
+                .Take(limit)
+                .Select(r => new
+                {
+                    r.Id,
+                    r.HospitalId,
+                    r.BloodTypeId,
+                    BloodTypeName = r.BloodType.TypeName,
+                    HospitalName = r.Hospital.Name,
+                    r.QuantityRequired,
+                    r.QuantityFulfilled,
+                    UrgencyLevelInt = (int)r.UrgencyLevel,
+                    StatusInt = (int)r.Status,
+                    r.Note,
+                    r.Deadline,
+                    r.DateOfCreattion,
+                    TotalResponses = _context.RequestResponses
+                        .Count(rr => rr.RequestId == r.Id)
+                })
+                .ToListAsync();
+
+            var items = raws.Select(r => new AdminRequestSummaryDTO
+            {
+                Id = r.Id,
+                HospitalId = r.HospitalId,
+                HospitalName = r.HospitalName,
+                BloodTypeId = r.BloodTypeId,
+                BloodTypeName = r.BloodTypeName,
+                QuantityRequired = r.QuantityRequired,
+                QuantityFulfilled = r.QuantityFulfilled,
+                ProgressPercent = r.QuantityRequired == 0 ? 0
+                    : Math.Round((double)r.QuantityFulfilled / r.QuantityRequired * 100, 1),
+                UrgencyLevel = ((UrgencyLevel)r.UrgencyLevelInt).ToString(),
+                Status = ((RequestStatus)r.StatusInt).ToString(),
+                Note = r.Note,
+                Deadline = r.Deadline,
+                TotalResponses = r.TotalResponses,
+                CreatedAt = r.DateOfCreattion
+            }).ToList();
+
+            return new AdminRequestListResult
+            {
+                Success = true,
+                Message = "Requests retrieved successfully.",
+                Items = items,
+                Total = total,
+                Page = page,
+                Limit = limit,
+                TotalPages = (int)Math.Ceiling((double)total / limit)
+            };
+        }
+
+        // ── PATCH /api/admin/requests/{id}/status ─────────────
+        public async Task<AdminRequestDetailResult> UpdateRequestStatusAsync(
+            string requestId,
+            UpdateRequestStatusDTO dto)
+        {
+            // Admin can only set Cancelled or Expired
+            if (dto.Status != RequestStatus.Cancelled &&
+                dto.Status != RequestStatus.Expired)
+                throw new ArgumentException(
+                    "Admin can only set status to Cancelled or Expired.");
+
+            var request = await _context.DonationRequests
+                .FirstOrDefaultAsync(r => r.Id == requestId && !r.IsDeleted);
+
+            if (request == null)
+                throw new KeyNotFoundException("Request not found.");
+
+            if (request.Status == RequestStatus.Fulfilled)
+                throw new InvalidOperationException(
+                    "Cannot change status of a fulfilled request.");
+
+            request.Status = dto.Status;
+            request.DateOfUpdate = DateTime.UtcNow;
+
+            if (!string.IsNullOrWhiteSpace(dto.Note))
+                request.Note = dto.Note;
+
+            await _context.SaveChangesAsync();
+
+            // Load display data
+            var raw = await _context.DonationRequests
+                .AsNoTracking()
+                .Where(r => r.Id == requestId)
+                .Select(r => new
+                {
+                    r.Id,
+                    r.HospitalId,
+                    HospitalName = r.Hospital.Name,
+                    r.BloodTypeId,
+                    BloodTypeName = r.BloodType.TypeName,
+                    r.QuantityRequired,
+                    r.QuantityFulfilled,
+                    UrgencyLevelInt = (int)r.UrgencyLevel,
+                    StatusInt = (int)r.Status,
+                    r.Note,
+                    r.Deadline,
+                    r.DateOfCreattion,
+                    TotalResponses = _context.RequestResponses.Count(rr => rr.RequestId == r.Id),
+                    Accepted = _context.RequestResponses.Count(rr => rr.RequestId == r.Id && rr.Status == ResponseStatus.Accepted),
+                    Arrived = _context.RequestResponses.Count(rr => rr.RequestId == r.Id && rr.Status == ResponseStatus.Arrived),
+                    Donated = _context.RequestResponses.Count(rr => rr.RequestId == r.Id && rr.Status == ResponseStatus.Donated),
+                    NoShow = _context.RequestResponses.Count(rr => rr.RequestId == r.Id && rr.Status == ResponseStatus.NoShow)
+                })
+                .FirstOrDefaultAsync();
+
+            if (raw == null)
+                return new AdminRequestDetailResult
+                {
+                    Success = false,
+                    Message = "Request not found after update."
+                };
+
+            return new AdminRequestDetailResult
+            {
+                Success = true,
+                Message = "Request status updated successfully.",
+                Value = new AdminRequestDetailDTO
+                {
+                    Id = raw.Id,
+                    HospitalId = raw.HospitalId,
+                    HospitalName = raw.HospitalName,
+                    BloodTypeId = raw.BloodTypeId,
+                    BloodTypeName = raw.BloodTypeName,
+                    QuantityRequired = raw.QuantityRequired,
+                    QuantityFulfilled = raw.QuantityFulfilled,
+                    ProgressPercent = raw.QuantityRequired == 0 ? 0
+                        : Math.Round((double)raw.QuantityFulfilled / raw.QuantityRequired * 100, 1),
+                    UrgencyLevel = ((UrgencyLevel)raw.UrgencyLevelInt).ToString(),
+                    Status = ((RequestStatus)raw.StatusInt).ToString(),
+                    Note = raw.Note,
+                    Deadline = raw.Deadline,
+                    TotalResponses = raw.TotalResponses,
+                    Accepted = raw.Accepted,
+                    Arrived = raw.Arrived,
+                    Donated = raw.Donated,
+                    NoShow = raw.NoShow,
+                    CreatedAt = raw.DateOfCreattion
+                }
+            };
+        }
+
+        // ── DELETE /api/admin/requests/{id} ───────────────────
+        public async Task<AdminDeleteResult> DeleteRequestAsync(string requestId)
+        {
+            var request = await _context.DonationRequests
+                .FirstOrDefaultAsync(r => r.Id == requestId && !r.IsDeleted);
+
+            if (request == null)
+                throw new KeyNotFoundException("Request not found.");
+
+            // Soft delete
+            request.IsDeleted = true;
+            request.DateOfUpdate = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return new AdminDeleteResult
+            {
+                Success = true,
+                Message = "Request deleted successfully."
+            };
+        }
+
+
+
+
+
+
+
+
     }
 }

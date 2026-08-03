@@ -21,10 +21,111 @@ namespace Base.Services.Implementations.HospitalImplementations
             _context = context;
         }
 
-        // ── Create ────────────────────────────────────────────────────
+        //// ── Create ────────────────────────────────────────────────────
+        //public async Task<BloodRequestResponseDTO> CreateRequestAsync(
+        //    string hospitalAdminUserId,
+        //    CreateBloodRequestDTO dto)
+        //{
+        //    // 1. Get hospital admin — scalars only to avoid enum cast issues
+        //    var hospitalAdmin = await _context.HospitalAdmins
+        //        .AsNoTracking()
+        //        .Where(ha => ha.UserId == hospitalAdminUserId && !ha.IsDeleted)
+        //        .Select(ha => new { ha.HospitalId })
+        //        .FirstOrDefaultAsync();
+
+        //    if (hospitalAdmin == null)
+        //        throw new UnauthorizedAccessException(
+        //            "No active hospital admin record found.");
+
+        //    // 2. Get hospital — cast Status to int to avoid LazyLoadingProxy error
+        //    var hospital = await _context.Hospitals
+        //        .AsNoTracking()
+        //        .Where(h => h.Id == hospitalAdmin.HospitalId && !h.IsDeleted)
+        //        .Select(h => new
+        //        {
+        //            h.Id,
+        //            h.Name,
+        //            h.Latitude,
+        //            h.Longitude,
+        //            StatusInt = (int)h.Status
+        //        })
+        //        .FirstOrDefaultAsync();
+
+        //    if (hospital == null)
+        //        throw new UnauthorizedAccessException(
+        //            "Associated hospital not found.");
+
+        //    // HospitalStatus.Active = 2
+        //    if (hospital.StatusInt != 2)
+        //        throw new InvalidOperationException(
+        //            "Your hospital must be active to create blood requests.");
+
+        //    // 3. Validate blood type
+        //    var bloodType = await _context.BloodTypes
+        //        .AsNoTracking()
+        //        .Where(b => b.Id == dto.BloodTypeId)
+        //        .Select(b => new { b.Id, b.TypeName })
+        //        .FirstOrDefaultAsync();
+
+        //    if (bloodType == null)
+        //        throw new ArgumentException("Invalid blood type selected.");
+
+        //    // 4. Create the donation request
+        //    var request = new DonationRequest
+        //    {
+        //        HospitalId        = hospital.Id,
+        //        BloodTypeId       = dto.BloodTypeId,
+        //        QuantityRequired  = dto.QuantityRequired,
+        //        QuantityFulfilled = 0,
+        //        UrgencyLevel      = dto.UrgencyLevel,
+        //        Note              = dto.Note,
+        //        Deadline          = dto.Deadline,
+        //        Status            = RequestStatus.Open,
+        //        Latitude          = hospital.Latitude,
+        //        Longitude         = hospital.Longitude,
+        //        IsDeleted         = false
+        //    };
+
+        //    _context.DonationRequests.Add(request);
+        //    await _context.SaveChangesAsync();
+
+        //    // 5. Create in-app notification for the hospital admin
+        //    var notification = new Notification
+        //    {
+        //        UserId           = hospitalAdminUserId,
+        //        Title            = "Blood Request Created",
+        //        Body             = $"Your request for {bloodType.TypeName} blood has been submitted successfully.",
+        //        IsRead           = false,
+        //        RelatedRequestId = request.Id
+        //    };
+
+        //    _context.Notifications.Add(notification);
+        //    await _context.SaveChangesAsync();
+
+        //    // 6. Enqueue Hangfire job to find eligible nearby donors and notify them
+        //    BackgroundJob.Enqueue<FindAndNotifyDonorsJob>(
+        //        job => job.ExecuteAsync(request.Id));
+
+        //    // 7. Return response
+        //    return new BloodRequestResponseDTO
+        //    {
+        //        Id                = request.Id,
+        //        HospitalId        = hospital.Id,
+        //        HospitalName      = hospital.Name,
+        //        BloodTypeId       = bloodType.Id,
+        //        BloodTypeName     = bloodType.TypeName,
+        //        QuantityRequired  = request.QuantityRequired,
+        //        QuantityFulfilled = 0,
+        //        UrgencyLevel      = request.UrgencyLevel,
+        //        Status            = request.Status,
+        //        Note              = request.Note,
+        //        Deadline          = request.Deadline,
+        //        CreatedAt         = request.DateOfCreattion
+        //    };
+        //}
         public async Task<BloodRequestResponseDTO> CreateRequestAsync(
-            string hospitalAdminUserId,
-            CreateBloodRequestDTO dto)
+        string hospitalAdminUserId,
+        CreateBloodRequestDTO dto)
         {
             // 1. Get hospital admin — scalars only to avoid enum cast issues
             var hospitalAdmin = await _context.HospitalAdmins
@@ -32,10 +133,8 @@ namespace Base.Services.Implementations.HospitalImplementations
                 .Where(ha => ha.UserId == hospitalAdminUserId && !ha.IsDeleted)
                 .Select(ha => new { ha.HospitalId })
                 .FirstOrDefaultAsync();
-
             if (hospitalAdmin == null)
-                throw new UnauthorizedAccessException(
-                    "No active hospital admin record found.");
+                throw new UnauthorizedAccessException("No active hospital admin record found.");
 
             // 2. Get hospital — cast Status to int to avoid LazyLoadingProxy error
             var hospital = await _context.Hospitals
@@ -50,15 +149,11 @@ namespace Base.Services.Implementations.HospitalImplementations
                     StatusInt = (int)h.Status
                 })
                 .FirstOrDefaultAsync();
-
             if (hospital == null)
-                throw new UnauthorizedAccessException(
-                    "Associated hospital not found.");
+                throw new UnauthorizedAccessException("Associated hospital not found.");
 
-            // HospitalStatus.Active = 2
             if (hospital.StatusInt != 2)
-                throw new InvalidOperationException(
-                    "Your hospital must be active to create blood requests.");
+                throw new InvalidOperationException("Your hospital must be active to create blood requests.");
 
             // 3. Validate blood type
             var bloodType = await _context.BloodTypes
@@ -66,61 +161,68 @@ namespace Base.Services.Implementations.HospitalImplementations
                 .Where(b => b.Id == dto.BloodTypeId)
                 .Select(b => new { b.Id, b.TypeName })
                 .FirstOrDefaultAsync();
-
             if (bloodType == null)
                 throw new ArgumentException("Invalid blood type selected.");
 
             // 4. Create the donation request
             var request = new DonationRequest
             {
-                HospitalId        = hospital.Id,
-                BloodTypeId       = dto.BloodTypeId,
-                QuantityRequired  = dto.QuantityRequired,
+                HospitalId = hospital.Id,
+                BloodTypeId = dto.BloodTypeId,
+                QuantityRequired = dto.QuantityRequired,
                 QuantityFulfilled = 0,
-                UrgencyLevel      = dto.UrgencyLevel,
-                Note              = dto.Note,
-                Deadline          = dto.Deadline,
-                Status            = RequestStatus.Open,
-                Latitude          = hospital.Latitude,
-                Longitude         = hospital.Longitude,
-                IsDeleted         = false
+                UrgencyLevel = dto.UrgencyLevel,
+                Note = dto.Note,
+                Deadline = dto.Deadline,
+                Status = RequestStatus.Open,
+                Latitude = hospital.Latitude,
+                Longitude = hospital.Longitude,
+                IsDeleted = false
             };
-
             _context.DonationRequests.Add(request);
             await _context.SaveChangesAsync();
 
             // 5. Create in-app notification for the hospital admin
             var notification = new Notification
             {
-                UserId           = hospitalAdminUserId,
-                Title            = "Blood Request Created",
-                Body             = $"Your request for {bloodType.TypeName} blood has been submitted successfully.",
-                IsRead           = false,
+                UserId = hospitalAdminUserId,
+                Title = "Blood Request Created",
+                Body = $"Your request for {bloodType.TypeName} blood has been submitted successfully and is being synced to the ledger background.",
+                IsRead = false,
                 RelatedRequestId = request.Id
             };
-
             _context.Notifications.Add(notification);
             await _context.SaveChangesAsync();
 
-            // 6. Enqueue Hangfire job to find eligible nearby donors and notify them
-            BackgroundJob.Enqueue<FindAndNotifyDonorsJob>(
+            // =================================================================
+            // BACKGROUND JOBS (ENQUEUED IN HANGFIRE)
+            // =================================================================
+
+            // Job A: Log request metadata asynchronously to the blockchain network
+            BackgroundJob.Enqueue<LogRequestToBlockchainJob>(
                 job => job.ExecuteAsync(request.Id));
+
+            // Job B: Find eligible nearby donors and send out push notifications
+            BackgroundJob.Enqueue<FindAndNotifyDonorsJob>(
+                job => job.ExecuteAsync(request.Id, dto.MaxDistanceKm));
+
+            // =================================================================
 
             // 7. Return response
             return new BloodRequestResponseDTO
             {
-                Id                = request.Id,
-                HospitalId        = hospital.Id,
-                HospitalName      = hospital.Name,
-                BloodTypeId       = bloodType.Id,
-                BloodTypeName     = bloodType.TypeName,
-                QuantityRequired  = request.QuantityRequired,
+                Id = request.Id,
+                HospitalId = hospital.Id,
+                HospitalName = hospital.Name,
+                BloodTypeId = bloodType.Id,
+                BloodTypeName = bloodType.TypeName,
+                QuantityRequired = request.QuantityRequired,
                 QuantityFulfilled = 0,
-                UrgencyLevel      = request.UrgencyLevel,
-                Status            = request.Status,
-                Note              = request.Note,
-                Deadline          = request.Deadline,
-                CreatedAt         = request.DateOfCreattion
+                UrgencyLevel = request.UrgencyLevel,
+                Status = request.Status,
+                Note = request.Note,
+                Deadline = request.Deadline,
+                CreatedAt = request.DateOfCreattion
             };
         }
 
@@ -320,30 +422,85 @@ namespace Base.Services.Implementations.HospitalImplementations
         }
 
         // ── Update ────────────────────────────────────────────────────
+        //public async Task<BloodRequestResponseDTO> UpdateRequestAsync(
+        //    string hospitalAdminUserId,
+        //    string requestId,
+        //    UpdateBloodRequestDTO dto)
+        //{
+        //    var hospitalAdmin = await _context.HospitalAdmins
+        //        .FirstOrDefaultAsync(ha =>
+        //            ha.UserId == hospitalAdminUserId && !ha.IsDeleted);
+
+        //    if (hospitalAdmin == null)
+        //        throw new UnauthorizedAccessException("No hospital admin record found.");
+
+        //    var request = await _context.DonationRequests
+        //        .Include(r => r.BloodType)
+        //        .FirstOrDefaultAsync(r =>
+        //            r.Id == requestId &&
+        //            r.HospitalId == hospitalAdmin.HospitalId);
+
+        //    if (request == null)
+        //        throw new KeyNotFoundException("Request not found.");
+
+        //    if (request.Status != RequestStatus.Open)
+        //        throw new InvalidOperationException(
+        //            "Only open requests can be updated.");
+
+        //    // Apply updates — only update fields that are provided
+        //    if (dto.QuantityRequired.HasValue)
+        //        request.QuantityRequired = dto.QuantityRequired.Value;
+
+        //    if (dto.UrgencyLevel.HasValue)
+        //        request.UrgencyLevel = dto.UrgencyLevel.Value;
+
+        //    if (dto.Note is not null)
+        //        request.Note = dto.Note;
+
+        //    if (dto.Deadline.HasValue)
+        //        request.Deadline = dto.Deadline;
+
+        //    if (dto.Status.HasValue && dto.Status == RequestStatus.Cancelled)
+        //        request.Status = RequestStatus.Cancelled;
+
+        //    await _context.SaveChangesAsync();
+
+        //    return new BloodRequestResponseDTO
+        //    {
+        //        Id                = request.Id,
+        //        HospitalId        = request.HospitalId,
+        //        HospitalName      = hospitalAdmin.Hospital?.Name ?? "",
+        //        BloodTypeId       = request.BloodTypeId,
+        //        BloodTypeName     = request.BloodType?.TypeName  ?? "",
+        //        QuantityRequired  = request.QuantityRequired,
+        //        QuantityFulfilled = request.QuantityFulfilled,
+        //        UrgencyLevel      = request.UrgencyLevel,
+        //        Status            = request.Status,
+        //        Note              = request.Note,
+        //        Deadline          = request.Deadline,
+        //        CreatedAt         = request.DateOfCreattion
+        //    };
+        //}
         public async Task<BloodRequestResponseDTO> UpdateRequestAsync(
-            string hospitalAdminUserId,
-            string requestId,
-            UpdateBloodRequestDTO dto)
+    string hospitalAdminUserId,
+    string requestId,
+    UpdateBloodRequestDTO dto)
         {
             var hospitalAdmin = await _context.HospitalAdmins
-                .FirstOrDefaultAsync(ha =>
-                    ha.UserId == hospitalAdminUserId && !ha.IsDeleted);
+                .FirstOrDefaultAsync(ha => ha.UserId == hospitalAdminUserId && !ha.IsDeleted);
 
             if (hospitalAdmin == null)
                 throw new UnauthorizedAccessException("No hospital admin record found.");
 
+            // Retrieve writable entity tracking reference directly without complex Include lookups
             var request = await _context.DonationRequests
-                .Include(r => r.BloodType)
-                .FirstOrDefaultAsync(r =>
-                    r.Id == requestId &&
-                    r.HospitalId == hospitalAdmin.HospitalId);
+                .FirstOrDefaultAsync(r => r.Id == requestId && r.HospitalId == hospitalAdmin.HospitalId);
 
             if (request == null)
                 throw new KeyNotFoundException("Request not found.");
 
             if (request.Status != RequestStatus.Open)
-                throw new InvalidOperationException(
-                    "Only open requests can be updated.");
+                throw new InvalidOperationException("Only open requests can be updated.");
 
             // Apply updates — only update fields that are provided
             if (dto.QuantityRequired.HasValue)
@@ -361,25 +518,45 @@ namespace Base.Services.Implementations.HospitalImplementations
             if (dto.Status.HasValue && dto.Status == RequestStatus.Cancelled)
                 request.Status = RequestStatus.Cancelled;
 
+            // Save internal mutations to database first
             await _context.SaveChangesAsync();
+
+            // =================================================================
+            // ENQUEUE THE BLOCKCHAIN COMBINED BACKGROUND UPDATE JOB
+            // =================================================================
+            BackgroundJob.Enqueue<UpdateRequestOnBlockchainJob>(
+                job => job.ExecuteAsync(request.Id));
+            // =================================================================
+
+            // Pull lookup labels optimized without breaking include tracking limitations
+            var bloodTypeName = await _context.BloodTypes
+                .AsNoTracking()
+                .Where(b => b.Id == request.BloodTypeId)
+                .Select(b => b.TypeName)
+                .FirstOrDefaultAsync() ?? "";
+
+            var hospitalName = await _context.Hospitals
+                .AsNoTracking()
+                .Where(h => h.Id == hospitalAdmin.HospitalId)
+                .Select(h => h.Name)
+                .FirstOrDefaultAsync() ?? "";
 
             return new BloodRequestResponseDTO
             {
-                Id                = request.Id,
-                HospitalId        = request.HospitalId,
-                HospitalName      = hospitalAdmin.Hospital?.Name ?? "",
-                BloodTypeId       = request.BloodTypeId,
-                BloodTypeName     = request.BloodType?.TypeName  ?? "",
-                QuantityRequired  = request.QuantityRequired,
+                Id = request.Id,
+                HospitalId = request.HospitalId,
+                HospitalName = hospitalName,
+                BloodTypeId = request.BloodTypeId,
+                BloodTypeName = bloodTypeName,
+                QuantityRequired = request.QuantityRequired,
                 QuantityFulfilled = request.QuantityFulfilled,
-                UrgencyLevel      = request.UrgencyLevel,
-                Status            = request.Status,
-                Note              = request.Note,
-                Deadline          = request.Deadline,
-                CreatedAt         = request.DateOfCreattion
+                UrgencyLevel = request.UrgencyLevel,
+                Status = request.Status,
+                Note = request.Note,
+                Deadline = request.Deadline,
+                CreatedAt = request.DateOfCreattion
             };
         }
-
         // ── Cancel ────────────────────────────────────────────────────
         public async Task<bool> CancelRequestAsync(
             string hospitalAdminUserId,
@@ -406,7 +583,96 @@ namespace Base.Services.Implementations.HospitalImplementations
 
             request.Status = RequestStatus.Cancelled;
             await _context.SaveChangesAsync();
+            if(request.Id != null && request.HospitalId != null)
+            BackgroundJob.Enqueue<UpdateRequestOnBlockchainJob>(
+               job => job.ExecuteAsync(request.Id));
+            return true;
+        }
+        ///////////
+        ///
+        public async Task<bool> UpdateDonorResponseStatusAsync(string hospitalAdminUserId, UpdateResponseStatusDTO dto)
+        {
+            // 1. جلب الـ HospitalId الخاص بالأدمن للتأكد من هويته
+            var hospitalAdmin = await _context.HospitalAdmins
+                .AsNoTracking()
+                .Where(ha => ha.UserId == hospitalAdminUserId && !ha.IsDeleted)
+                .Select(ha => new { ha.HospitalId })
+                .FirstOrDefaultAsync();
 
+            if (hospitalAdmin == null)
+                throw new UnauthorizedAccessException("No active hospital admin record found.");
+
+            // 2. جلب سجل الاستجابة
+            var responseLog = await _context.RequestResponses
+                .FirstOrDefaultAsync(rr => rr.Id == dto.ResponseId);
+
+            if (responseLog == null)
+                throw new ArgumentException("Response record not found.");
+
+            // 3. التأكد التام أن الطلب يخص مستشفى هذا الأدمن بالظبط ( لمنع الـ ID Spoofing )
+            var bloodRequest = await _context.DonationRequests
+                .FirstOrDefaultAsync(r => r.Id == responseLog.RequestId && r.HospitalId == hospitalAdmin.HospitalId && !r.IsDeleted);
+
+            if (bloodRequest == null)
+                throw new UnauthorizedAccessException("You do not have permission to modify this request's responses.");
+
+            // 4. تحديث الحالة
+            var oldStatus = responseLog.Status;
+            responseLog.Status = (ResponseStatus)dto.NewStatus;
+            responseLog.DateOfUpdate = DateTime.UtcNow;
+
+            // [باقي منطق الـ Donated والـ History كما هو لربط الـ Dashboard تلقائياً...]
+            if (responseLog.Status == ResponseStatus.Donated && oldStatus != ResponseStatus.Donated)
+            {
+                var donor = await _context.Donors.FirstOrDefaultAsync(d => d.Id == responseLog.DonorId);
+
+                // 🛑 شرط الأمان الطبي: التأكد من أنه متاح ومؤهل وبقاله أكتر من 3 شهور متبرعش
+                var threeMonthsAgo = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-3));
+
+                if (donor == null || !donor.IsAvailableForDonation || donor.IsDeleted)
+                {
+                    throw new InvalidOperationException("This donor is currently ineligible or unavailable for blood donation.");
+                }
+
+                if (donor.LastDonationDate.HasValue && donor.LastDonationDate.Value > threeMonthsAgo)
+                {
+                    var nextAvailableDate = donor.LastDonationDate.Value.AddMonths(3);
+                    throw new InvalidOperationException($"This donor cannot donate yet. Next eligible date is after: {nextAvailableDate}");
+                }
+                bloodRequest.QuantityFulfilled += 1;
+
+                // ب. إذا اكتمل الطلب تماماً، نغير حالته إلى Fulfilled (فرضاً 2 = Fulfilled)
+                if (bloodRequest.QuantityFulfilled >= bloodRequest.QuantityRequired)
+                {
+                    bloodRequest.Status = (RequestStatus)2;
+                }
+
+                // ج. تحديث تاريخ آخر تبرع للمتبرع (LastDonationDate) لليوم عشان يبقى غير مؤهل (Ineligible) تلقائياً
+                if (donor != null)
+                {
+                    donor.LastDonationDate = DateOnly.FromDateTime(DateTime.UtcNow);
+                }
+
+                // د. إضافة سجل التبرع في الـ DonationHistories عشان الـ Dashboard تسمع فوراً
+                var historyExists = await _context.DonationHistories.AnyAsync(h => h.RequestId == bloodRequest.Id && h.DonorId == responseLog.DonorId);
+                if (!historyExists)
+                {
+                    var history = new DonationHistory
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        DonorId = responseLog.DonorId,
+                        HospitalId = hospitalAdmin.HospitalId,
+                        RequestId = bloodRequest.Id,
+                        DonationDate = DateTime.UtcNow,
+                        AmountML = 450, // الكمية القياسية للتبرع بالدم
+                        DateOfCreattion = DateTime.UtcNow,
+                        DateOfUpdate = DateTime.UtcNow
+                    };
+                    _context.DonationHistories.Add(history);
+                }
+            }
+
+            await _context.SaveChangesAsync();
             return true;
         }
     }

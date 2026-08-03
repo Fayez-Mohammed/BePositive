@@ -30,7 +30,7 @@ namespace Base.Services.Interfaces.HospitalInterfaces
             string hospitalAdminUserId,
             string requestId);
 
-       
-        
+        Task<bool> UpdateDonorResponseStatusAsync(string hospitalAdminUserId, UpdateResponseStatusDTO dto);
+
     }
 }

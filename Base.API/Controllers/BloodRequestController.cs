@@ -1,6 +1,7 @@
 ﻿// Base.API/Controllers/Hospital/BloodRequestController.cs
 
 using Base.API.DTOs;
+using Base.Services.Implementations;
 using Base.Services.Interfaces;
 using Base.Services.Interfaces.HospitalInterfaces;
 using Base.Shared.DTOs.HospitalDTOs;
@@ -261,6 +262,23 @@ namespace Base.API.Controllers.Hospital
                 });
             }
         }
+        [HttpPut("update-status")]
+        [Authorize(Roles = "HospitalAdmin")] // التأمين ومطابقة الـ Role من الـ Token
+        public async Task<IActionResult> UpdateResponseStatus([FromBody] UpdateResponseStatusDTO dto)
+        {
+            // سحب الـ UserId الخاص بالأدمن الحالي من الـ JWT Token مباشرة
+            var hospitalAdminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
+            if (string.IsNullOrEmpty(hospitalAdminUserId))
+                return Unauthorized();
+
+            // نمرر الـ ID المستخرج برمجياً إلى الـ Service للتحقق من الصلاحيات
+            var result = await _service.UpdateDonorResponseStatusAsync(hospitalAdminUserId, dto);
+
+            if (!result)
+                return BadRequest("Failed to update response status.");
+
+            return Ok(new { success = true });
+        }
     }
 }

@@ -10,7 +10,7 @@ namespace Base.Services.Implementations
     public class AdminDonorService : IAdminDonorService
     {
         private readonly AppDbContext _context;
-        private const int CooldownDays = 56;
+        private const int CooldownDays = 90;
 
         public AdminDonorService(AppDbContext context)
         {

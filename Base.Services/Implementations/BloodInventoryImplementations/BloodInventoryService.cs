@@ -2,9 +2,11 @@
 
 using Base.DAL.Contexts;
 using Base.DAL.Models.InventoryModels;
+using Base.Services.HangfireJobs;
 using Base.Services.Interfaces.HospitalInterfaces;
 using Base.Shared.DTOs.InventoryDTOs;
 using Base.Shared.Enums;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 
 namespace Base.Services.Implementations.HospitalImplementations
@@ -321,6 +323,8 @@ namespace Base.Services.Implementations.HospitalImplementations
                 // Auto-close request if fully fulfilled
                 if (request.QuantityFulfilled >= request.QuantityRequired)
                     request.Status = RequestStatus.Fulfilled;
+
+              
             }
 
             // ── Create transaction record ─────────────────────────────────
@@ -345,7 +349,11 @@ namespace Base.Services.Implementations.HospitalImplementations
             // ── Recalculate total units ───────────────────────────────────
             await RecalculateTotalUnitsAsync(inventory.Id);
             await _context.SaveChangesAsync();
-
+            if (!string.IsNullOrWhiteSpace(dto.RequestId))
+            {
+                BackgroundJob.Enqueue<SyncFulfillmentToBlockchainJob>(
+                    job => job.ExecuteAsync(dto.RequestId, dto.Units));
+            }
             // ── Get blood type name ───────────────────────────────────────
             var bloodTypeName = await _context.BloodTypes
                 .AsNoTracking()

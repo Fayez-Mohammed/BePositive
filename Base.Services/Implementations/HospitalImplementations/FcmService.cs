@@ -120,6 +120,8 @@ namespace Base.Services.Implementations
         {
             if (!_initialized)
             {
+                var path = Path.Combine(Directory.GetCurrentDirectory(), "backgroundErorr.txt");
+                System.IO.File.WriteAllText(path, "!_initialized");
                 _logger.LogWarning("Firebase not initialized. Skipping batch FCM send.");
                 return;
             }
@@ -162,6 +164,8 @@ namespace Base.Services.Implementations
                 {
                     _logger.LogError(ex,
                         "FCM batch send failed at batch index {Index}.", i);
+                    var path = Path.Combine(Directory.GetCurrentDirectory(), "backgroundErorr.txt");
+                    System.IO.File.WriteAllText(path, ex.ToString());
                 }
             }
         }

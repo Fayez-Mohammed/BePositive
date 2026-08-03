@@ -23,5 +23,6 @@ namespace Base.Shared.DTOs.HospitalDTOs
         public string? Note { get; set; }
 
         public DateTime? Deadline { get; set; }
+        public double MaxDistanceKm { get; set; } = 10; // Optional: Max distance to search for donors
     }
 }

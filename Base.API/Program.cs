@@ -14,7 +14,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt;
 using TimeZoneConverter;
-
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 internal class Program
 {
     private static async Task Main(string[] args)
@@ -31,6 +32,19 @@ internal class Program
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
 
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen();
+
+        // 🌟 حط كود الفايربيس هنا بالظبط يا فايز 🌟
+        var contentRootPath = builder.Environment.ContentRootPath;
+        var firebaseKeyPath = Path.Combine(contentRootPath, "service-account.json");
+        if (System.IO.File.Exists(firebaseKeyPath))
+        {
+            FirebaseApp.Create(new AppOptions()
+            {
+                Credential = GoogleCredential.FromFile(firebaseKeyPath)
+            });
+        }
         var app = builder.Build();
 
         #region Seeding

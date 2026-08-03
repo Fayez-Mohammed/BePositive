@@ -60,6 +60,7 @@ namespace Base.Services.HangFireJobs
                 {
                     batch.Status         = BatchStatus.Expired;
                     batch.RemainingUnits = 0;
+                    batch.Units = 0;
                 }
 
                 // Create audit transaction record

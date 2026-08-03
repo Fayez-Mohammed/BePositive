@@ -2,6 +2,7 @@
 
 using Base.API.DTOs;
 using Base.Services.Interfaces;
+using Base.Shared.DTOs.AdminDTOs;
 using Base.Shared.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -91,6 +92,125 @@ namespace Base.API.Controllers.Admin
                     Message = result.Message
                 });
             return Ok(result);
+        }
+
+        ///////////new 
+        ///
+    
+
+
+
+        // ── GET /api/admin/requests/hospital/{hospitalId} ─────
+        /// <summary>
+        /// Get all requests for a specific hospital.
+        /// Useful for drilling into a hospital's request history.
+        /// Filters: status, urgencyLevel
+        /// </summary>
+        [HttpGet("hospital/{hospitalId}")]
+        public async Task<IActionResult> GetRequestsByHospital(
+            string hospitalId,
+            [FromQuery] string? status = null,
+            [FromQuery] string? urgencyLevel = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int limit = 10)
+        {
+            try
+            {
+                var result = await _service.GetRequestsByHospitalAsync(
+                    hospitalId, status, urgencyLevel, page, limit);
+
+                return Ok(result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new ApiErrorResponseDTO
+                {
+                    StatusCode = 404,
+                    Message = ex.Message
+                });
+            }
+        }
+
+       
+
+        // ── PATCH /api/admin/requests/{id}/status ─────────────
+        /// <summary>
+        /// Update a request's status. Admin can only set Cancelled or Expired.
+        /// Fulfilled status is set automatically by the system.
+        /// Body: { "status": "Cancelled" | "Expired", "note": "optional reason" }
+        /// </summary>
+        [HttpPatch("{id}/status")]
+        public async Task<IActionResult> UpdateStatus(
+            string id,
+            [FromBody] UpdateRequestStatusDTO dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(new ApiErrorResponseDTO
+                {
+                    StatusCode = 400,
+                    Message = "Invalid request data."
+                });
+
+            try
+            {
+                var result = await _service.UpdateRequestStatusAsync(id, dto);
+
+                if (!result.Success)
+                    return NotFound(new ApiErrorResponseDTO
+                    {
+                        StatusCode = 404,
+                        Message = result.Message
+                    });
+
+                return Ok(result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new ApiErrorResponseDTO
+                {
+                    StatusCode = 404,
+                    Message = ex.Message
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new ApiErrorResponseDTO
+                {
+                    StatusCode = 400,
+                    Message = ex.Message
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new ApiErrorResponseDTO
+                {
+                    StatusCode = 400,
+                    Message = ex.Message
+                });
+            }
+        }
+
+        // ── DELETE /api/admin/requests/{id} ───────────────────
+        /// <summary>
+        /// Soft delete a blood request.
+        /// The request is marked as deleted and hidden from all views.
+        /// </summary>
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteRequest(string id)
+        {
+            try
+            {
+                var result = await _service.DeleteRequestAsync(id);
+                return Ok(result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new ApiErrorResponseDTO
+                {
+                    StatusCode = 404,
+                    Message = ex.Message
+                });
+            }
         }
     }
 }

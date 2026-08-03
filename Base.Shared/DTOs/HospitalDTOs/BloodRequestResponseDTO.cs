@@ -1,6 +1,8 @@
 ﻿// Base.Shared/DTOs/HospitalDTOs/BloodRequestResponseDTO.cs
 
 using Base.Shared.Enums;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace Base.Shared.DTOs.HospitalDTOs
 {
@@ -106,5 +108,16 @@ namespace Base.Shared.DTOs.HospitalDTOs
     {
         public string Id { get; set; }
         public string TypeName { get; set; }
+    }
+    public class UpdateResponseStatusDTO
+    {
+        [Required]
+        [JsonPropertyName("responseid")]
+        public string ResponseId { get; set; } = string.Empty;
+
+        [Required]
+        [Range(2, 5, ErrorMessage = "Invalid status transition.")] // الانتقالات المتاحة للمستشفى (Accepted, Arrived, Donated, NoShow)
+        [JsonPropertyName("newstatus")]
+        public int NewStatus { get; set; }
     }
 }
