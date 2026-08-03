@@ -361,4 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-Base.API/service-account.jsonBase.API/service-account.json
+
+# Ignore Google / Firebase Service Account Keys
+*.json
+Base.API/service-account.json
